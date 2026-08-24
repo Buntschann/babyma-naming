@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=3.2">
+  <link rel="stylesheet" href="./style.css?v=4.0">
 </head>
 <body>
 
@@ -58,8 +58,17 @@
       <div class="form-grid">
         <label>名前<input id="nameInput" maxlength="8" placeholder="例：凪"></label>
         <label>読み<input id="readingInput" maxlength="16" placeholder="例：なぎ"></label>
-        <label>画数<input id="strokesInput" inputmode="numeric" placeholder="例：6 または 6+8"></label>
-        <label>タグ<input id="tagsInput" placeholder="例：一文字,自然,やさしい響き"></label>
+        <label>画数
+          <div class="stroke-input-wrap">
+            <input id="strokesInput" inputmode="numeric" placeholder="名前から自動取得" readonly>
+            <button id="manualStrokeBtn" type="button" class="mini-btn">手入力</button>
+          </div>
+          <span id="strokeStatus" class="field-status">名前を入力すると自動取得しま</span>
+        </label>
+        <label>タグ
+          <input id="tagsInput" placeholder="例：一文字,自然,やさしい響き">
+          <div id="tagSuggestions" class="tag-suggestions"></div>
+        </label>
         <label>漢字の意味<input id="meaningInput" placeholder="例：風がやみ、波が静まる"></label>
         <label>名乗り読み<input id="nanoriInput" placeholder="例：なぎ"></label>
         <label class="wide">書き順メモ<input id="strokeOrderInput" maxlength="160" placeholder="例：参考URL／書き順メモ"></label>
@@ -132,6 +141,33 @@
   </div>
 </dialog>
 
+
+<dialog id="editDialog">
+  <div class="dialog-card">
+    <div class="dialog-head"><h2>候補を編集</h2><button id="closeEditBtn" class="iconbtn">×</button></div>
+    <div class="form-grid">
+      <label>名前<input id="editName" maxlength="8"></label>
+      <label>読み<input id="editReading" maxlength="16"></label>
+      <label>画数
+        <div class="stroke-input-wrap">
+          <input id="editStrokes" inputmode="numeric" readonly>
+          <button id="editManualStrokeBtn" type="button" class="mini-btn">手入力</button>
+        </div>
+        <span id="editStrokeStatus" class="field-status"></span>
+      </label>
+      <label>タグ
+        <input id="editTags">
+        <div id="editTagSuggestions" class="tag-suggestions"></div>
+      </label>
+      <label>漢字の意味<input id="editMeaning"></label>
+      <label>名乗り読み<input id="editNanori"></label>
+      <label class="wide">書き順メモ<input id="editStrokeOrder" maxlength="160"></label>
+      <label class="wide">メモ<input id="editMemo" maxlength="160"></label>
+    </div>
+    <button id="saveEditBtn" class="primary">変更を保存</button>
+  </div>
+</dialog>
+
 <template id="candidateTemplate">
   <article class="candidate card">
     <div class="full-name"></div>
@@ -167,6 +203,7 @@
       <time class="created"></time>
       <div class="actions">
         <button class="compare-add secondary">比較に追加</button>
+        <button class="edit secondary">編集</button>
         <button class="delete secondary">削除</button>
       </div>
     </div>
@@ -174,7 +211,7 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./config.js?v=3.2"></script>
-<script src="./app.js?v=3.2"></script>
+<script src="./config.js?v=4.0"></script>
+<script src="./app.js?v=4.0"></script>
 </body>
 </html>

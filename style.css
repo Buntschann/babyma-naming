@@ -21,3 +21,14 @@ input,select{width:100%;border:1px solid var(--line);background:#fff;border-radi
 .compare-head{display:flex;justify-content:space-between;align-items:start}.compare-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.compare-item{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}.compare-name{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:22px;font-weight:700}.compare-table{font-size:12px;margin-top:8px}.compare-table div{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:5px 0;gap:8px}
 dialog{border:0;border-radius:20px;padding:0;width:min(92vw,560px)}dialog::backdrop{background:rgba(0,0,0,.35)}.dialog-card{padding:18px}.dialog-head{display:flex;justify-content:space-between}.dialog-card label{margin-top:12px}.signed-in-as{margin-top:12px;color:var(--sub);font-size:11px}
 @media(max-width:560px){.form-grid{grid-template-columns:1fr}.wide{grid-column:auto}.control-row{flex-direction:column;align-items:stretch}.info-grid{grid-template-columns:1fr}.wide-info{grid-column:auto}.candidate-foot{align-items:flex-start;flex-direction:column}.compare-grid{grid-template-columns:1fr}}
+
+
+/* v4 */
+.stroke-input-wrap{display:flex;gap:6px;align-items:center}
+.stroke-input-wrap input{flex:1}
+.mini-btn{border:0;border-radius:10px;background:#f2eee8;color:#5b554e;min-height:44px;padding:0 10px;white-space:nowrap}
+.field-status{font-size:10px;color:var(--sub);line-height:1.35}
+.tag-suggestions{display:flex;gap:5px;flex-wrap:wrap;margin-top:3px}
+.tag-suggestion{border:0;border-radius:999px;background:#e9efe7;color:#51654c;padding:5px 8px;font-size:10px}
+.tag-suggestion.selected{background:#cfdcc9;font-weight:700}
+.actions{flex-wrap:wrap}

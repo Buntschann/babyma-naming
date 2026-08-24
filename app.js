@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s);
 const storage={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
 const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
-const state={candidates:[],history:[],comments:[],compare:[],actor:"",user:null};
+const state={candidates:[],history:[],comments:[],compare:[],actor:"",user:null,editing:null};
 const ROOM="BABYMA";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
@@ -11,6 +11,61 @@ const count=s=>[...(s||"")].length;
 const strokeTotal=s=>{const n=(s||"").match(/\d+/g);return n?n.map(Number).reduce((a,b)=>a+b,0):null};
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const statusName=s=>({candidate:"候補",hold:"保留",rejected:"却下"}[s]||"候補");
+const isKanji=ch=>/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u.test(ch);
+const debounce=(fn,ms=500)=>{let t;return(...args)=>{clearTimeout(t);t=setTimeout(()=>fn(...args),ms)}};
+
+function parseTags(value){
+ return [...new Set((value||"").split(",").map(x=>x.trim()).filter(Boolean))];
+}
+function allTags(){
+ return [...new Set(state.candidates.flatMap(c=>c.tags||[]))].sort((a,b)=>a.localeCompare(b,"ja"));
+}
+function toggleTagInput(input,tag){
+ const tags=parseTags(input.value);
+ const i=tags.indexOf(tag);
+ if(i>=0) tags.splice(i,1); else tags.push(tag);
+ input.value=tags.join(",");
+}
+function renderTagSuggestions(container,input){
+ container.innerHTML="";
+ const current=parseTags(input.value);
+ allTags().forEach(tag=>{
+   const b=document.createElement("button");
+   b.type="button";b.className="tag-suggestion"+(current.includes(tag)?" selected":"");
+   b.textContent="#"+tag;
+   b.onclick=()=>{toggleTagInput(input,tag);renderTagSuggestions(container,input)};
+   container.appendChild(b);
+ });
+}
+async function fetchStrokeInfo(name,input,statusEl){
+ const chars=[...(name||"").trim()];
+ if(!chars.length){input.value="";input.dataset.total="";statusEl.textContent="名前を入力すると自動取得しま";return null}
+ const kanji=chars.filter(isKanji);
+ if(!kanji.length){input.value="";input.dataset.total="";statusEl.textContent="漢字がないため自動取得できなま";return null}
+ statusEl.textContent="画数を取得中…";
+ try{
+   const rows=await Promise.all(kanji.map(async ch=>{
+     const r=await fetch("https://kanjiapi.dev/v1/kanji/"+encodeURIComponent(ch));
+     if(!r.ok) throw new Error(ch);
+     const j=await r.json();
+     return {ch,strokes:j.stroke_count};
+   }));
+   const text=rows.map(x=>x.strokes).join("+");
+   const total=rows.reduce((n,x)=>n+x.strokes,0);
+   input.value=text;
+   input.dataset.total=String(total);
+   statusEl.textContent=rows.map(x=>`${x.ch} ${x.strokes}画`).join(" ／ ")+` → 合計 ${total}画`;
+   return total;
+ }catch(e){
+   input.value="";input.dataset.total="";
+   statusEl.textContent="自動取得できなま。手入力を使ってま";
+   return null;
+ }
+}
+function enableManualStroke(input,statusEl){
+ input.readOnly=false;input.focus();statusEl.textContent="手入力モードま";
+}
+
 
 function configReady(){
  return cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY &&
@@ -78,6 +133,7 @@ async function refresh(retry=0){
  state.history=b.data||[];state.comments=c.data||[];
  state.compare=storage.get("babyma_compare",[]);
  render();
+ renderTagSuggestions($("#tagSuggestions"),$("#tagsInput"));
 }
 async function history(action,c,detail=""){
  const row={room_code:ROOM,actor:state.actor||state.user?.email||"家族",owner_device_id:state.user.id,action,candidate_name:c?.name||"",candidate_reading:c?.reading||"",detail};
@@ -86,12 +142,15 @@ async function history(action,c,detail=""){
 async function addCandidate(){
  if(!state.actor){$("#settingsDialog").showModal();return}
  const name=$("#nameInput").value.trim(),reading=$("#readingInput").value.trim();if(!name||!reading){alert("名前と読みを入れてま！");return}
- const tags=$("#tagsInput").value.split(",").map(x=>x.trim()).filter(Boolean);
- const row={room_code:ROOM,name,reading,strokes_text:$("#strokesInput").value.trim(),stroke_total:strokeTotal($("#strokesInput").value),char_count:count(name),memo:$("#memoInput").value.trim(),tags,actor:state.actor,owner_device_id:state.user.id,status:"candidate",meaning:$("#meaningInput").value.trim(),nanori:$("#nanoriInput").value.trim(),stroke_order:$("#strokeOrderInput").value.trim(),like_mako:false,like_nae:false};
+ const tags=parseTags($("#tagsInput").value);
+ const autoTotal=$("#strokesInput").dataset.total ? Number($("#strokesInput").dataset.total) : strokeTotal($("#strokesInput").value);
+ const row={room_code:ROOM,name,reading,strokes_text:$("#strokesInput").value.trim(),stroke_total:autoTotal,char_count:count(name),memo:$("#memoInput").value.trim(),tags,actor:state.actor,owner_device_id:state.user.id,status:"candidate",meaning:$("#meaningInput").value.trim(),nanori:$("#nanoriInput").value.trim(),stroke_order:$("#strokeOrderInput").value.trim(),like_mako:false,like_nae:false};
  const {data,error}=await sb.from("name_candidates").insert(row).select().single();
  if(error){alert(error.message);return}
  await history("候補追加",data);await refresh();
- ["#nameInput","#readingInput","#strokesInput","#tagsInput","#memoInput","#meaningInput","#nanoriInput","#strokeOrderInput"].forEach(s=>$(s).value="");preview();
+ ["#nameInput","#readingInput","#strokesInput","#tagsInput","#memoInput","#meaningInput","#nanoriInput","#strokeOrderInput"].forEach(s=>$(s).value="");
+ $("#strokesInput").dataset.total="";$("#strokesInput").readOnly=true;$("#strokeStatus").textContent="名前を入力すると自動取得しま";
+ renderTagSuggestions($("#tagSuggestions"),$("#tagsInput"));preview();
 }
 async function updateCandidate(c,patch,action,detail=""){
  const dbPatch={...patch};
@@ -120,6 +179,44 @@ async function deleteHistory(h){
  if(h.owner_device_id!==state.user.id)return;
  const {error}=await sb.from("name_history").delete().eq("id",h.id).eq("owner_device_id",state.user.id);
  if(error){alert(error.message);return} await refresh();
+}
+
+function openEdit(c){
+ state.editing=c;
+ $("#editName").value=c.name||"";
+ $("#editReading").value=c.reading||"";
+ $("#editStrokes").value=c.strokes_text||"";
+ $("#editStrokes").dataset.total=c.stroke_total==null?"":String(c.stroke_total);
+ $("#editStrokes").readOnly=true;
+ $("#editStrokeStatus").textContent=c.stroke_total!=null?`現在 ${c.stroke_total}画`:"名前を変更すると自動取得しま";
+ $("#editTags").value=(c.tags||[]).join(",");
+ $("#editMeaning").value=c.meaning||"";
+ $("#editNanori").value=c.nanori||"";
+ $("#editStrokeOrder").value=c.stroke_order||"";
+ $("#editMemo").value=c.memo||"";
+ renderTagSuggestions($("#editTagSuggestions"),$("#editTags"));
+ $("#editDialog").showModal();
+}
+async function saveEdit(){
+ const c=state.editing;if(!c)return;
+ const name=$("#editName").value.trim(),reading=$("#editReading").value.trim();
+ if(!name||!reading){alert("名前と読みを入れてま！");return}
+ const total=$("#editStrokes").dataset.total ? Number($("#editStrokes").dataset.total) : strokeTotal($("#editStrokes").value);
+ const patch={
+   name,reading,
+   strokes_text:$("#editStrokes").value.trim(),
+   stroke_total:total,
+   char_count:count(name),
+   tags:parseTags($("#editTags").value),
+   meaning:$("#editMeaning").value.trim(),
+   nanori:$("#editNanori").value.trim(),
+   stroke_order:$("#editStrokeOrder").value.trim(),
+   memo:$("#editMemo").value.trim()
+ };
+ const {error}=await sb.from("name_candidates").update(patch).eq("id",c.id);
+ if(error){alert(error.message);return}
+ await history("候補編集",{...c,...patch},"内容を更新");
+ state.editing=null;$("#editDialog").close();await refresh();
 }
 function toggleCompare(c){
  if(state.compare.includes(c.id)) state.compare=state.compare.filter(x=>x!==c.id);
@@ -164,6 +261,7 @@ function render(){
   const vm=n.querySelector(".vote-mako"),vn=n.querySelector(".vote-nae");vm.classList.toggle("on",!!c.likes?.mako);vn.classList.toggle("on",!!c.likes?.nae);vm.textContent=`${c.likes?.mako?"★":"☆"} まこしゃ`;vn.textContent=`${c.likes?.nae?"★":"☆"} なえちゃ`;vm.onclick=()=>toggleLike(c,"mako");vn.onclick=()=>toggleLike(c,"nae");
   n.querySelector(".created").textContent=`${fmt(c.created_at)} ・ ${c.actor||"家族"}`;n.querySelector(".delete").onclick=()=>delCandidate(c);
   const ca=n.querySelector(".compare-add");ca.textContent=state.compare.includes(c.id)?"比較から外す":"比較に追加";ca.onclick=()=>toggleCompare(c);
+  n.querySelector(".edit").onclick=()=>openEdit(c);
   const cl=n.querySelector(".comment-list");state.comments.filter(x=>x.candidate_id===c.id).forEach(cm=>{let d=document.createElement("div");d.className="comment";d.innerHTML=`<div class="comment-meta">${esc(cm.actor)} ・ ${esc(fmt(cm.created_at))}</div>${esc(cm.comment)}`;cl.appendChild(d)});
   const ci=n.querySelector(".comment-input");n.querySelector(".comment-add").onclick=()=>addComment(c,ci);list.appendChild(n);
  });
@@ -176,7 +274,22 @@ function preview(){ $("#previewName").textContent=`文谷　${$("#nameInput").va
 $("#loginBtn").onclick=login;
 $("#loginPassword").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
 $("#logoutBtn").onclick=logout;
-$("#nameInput").oninput=preview;$("#readingInput").oninput=preview;$("#addBtn").onclick=addCandidate;$("#searchInput").oninput=render;$("#sortSelect").onchange=render;$("#statusFilter").onchange=render;
+
+const autoStrokeAdd=debounce(()=>fetchStrokeInfo($("#nameInput").value,$("#strokesInput"),$("#strokeStatus")),450);
+const autoStrokeEdit=debounce(()=>fetchStrokeInfo($("#editName").value,$("#editStrokes"),$("#editStrokeStatus")),450);
+
+$("#nameInput").oninput=()=>{preview();$("#strokesInput").readOnly=true;autoStrokeAdd()};
+$("#readingInput").oninput=preview;
+$("#manualStrokeBtn").onclick=()=>enableManualStroke($("#strokesInput"),$("#strokeStatus"));
+$("#tagsInput").oninput=()=>renderTagSuggestions($("#tagSuggestions"),$("#tagsInput"));
+
+$("#editName").oninput=()=>{$("#editStrokes").readOnly=true;autoStrokeEdit()};
+$("#editManualStrokeBtn").onclick=()=>enableManualStroke($("#editStrokes"),$("#editStrokeStatus"));
+$("#editTags").oninput=()=>renderTagSuggestions($("#editTagSuggestions"),$("#editTags"));
+$("#saveEditBtn").onclick=saveEdit;
+$("#closeEditBtn").onclick=()=>{state.editing=null;$("#editDialog").close()};
+
+$("#addBtn").onclick=addCandidate;$("#searchInput").oninput=render;$("#sortSelect").onchange=render;$("#statusFilter").onchange=render;
 $("#clearCompareBtn").onclick=()=>{state.compare=[];storage.set("babyma_compare",[]);render()};
 $("#settingsBtn").onclick=()=>$("#settingsDialog").showModal();$("#closeSettingsBtn").onclick=()=>$("#settingsDialog").close();
 $("#saveSettingsBtn").onclick=()=>{state.actor=$("#actorInput").value.trim();storage.set("babyma_actor",state.actor);$("#settingsDialog").close();render()};
