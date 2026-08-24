@@ -3,6 +3,6 @@
 // Publishable key (sb_publishable_...) を使います。
 
 window.BABYMA_CONFIG = {
-  SUPABASE_URL: "ここにProject URLを貼る",
-  SUPABASE_PUBLISHABLE_KEY: "ここにPublishable keyを貼る"
+  SUPABASE_URL: "https://tsxckrlvsrevpqtfuhso.supabase.co",
+  SUPABASE_PUBLISHABLE_KEY: "sb_publishable_DLvQObXed8voIrrcujUJkg_V6q8U9YY"
 };
