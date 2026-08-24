@@ -32,3 +32,52 @@ dialog{border:0;border-radius:20px;padding:0;width:min(92vw,560px)}dialog::backd
 .tag-suggestion{border:0;border-radius:999px;background:#e9efe7;color:#51654c;padding:5px 8px;font-size:10px}
 .tag-suggestion.selected{background:#cfdcc9;font-weight:700}
 .actions{flex-wrap:wrap}
+
+.tag-picker{min-height:32px;padding:4px 0}
+.tag-picker:empty::after{content:"まだ過去タグがなま";font-size:10px;color:var(--sub)}
+.new-tag-row{display:flex;gap:6px;margin-top:7px}
+.new-tag-row input{flex:1}
+
+
+/* v4.2 update history */
+.updatebtn{
+  border:0;
+  background:#eee7de;
+  color:#655e56;
+  border-radius:10px;
+  padding:8px 10px;
+  font-size:11px;
+  white-space:nowrap;
+}
+.updates-dialog-card{max-height:min(82dvh,760px);overflow:auto}
+.current-version{
+  display:inline-block;
+  background:var(--accent2);
+  color:#7b4937;
+  border-radius:999px;
+  padding:7px 10px;
+  font-size:12px;
+  margin-bottom:14px;
+}
+.update-history{display:grid;gap:10px}
+.update-entry{
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px;
+  background:#fff;
+}
+.update-entry.latest{border-color:#d7b7a5;background:#fffaf6}
+.version-line{display:flex;align-items:center;gap:8px}
+.version-line strong{font-size:16px}
+.version-line span{
+  font-size:10px;
+  background:var(--accent);
+  color:white;
+  border-radius:999px;
+  padding:3px 7px;
+}
+.update-entry ul{margin:8px 0 0;padding-left:1.3em;color:#5f5952;font-size:12px;line-height:1.7}
+@media(max-width:560px){
+  .top-actions{gap:2px}
+  .updatebtn,.logoutbtn{padding:7px 8px;font-size:10px}
+}

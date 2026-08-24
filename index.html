@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=4.0">
+  <link rel="stylesheet" href="./style.css?v=4.2">
 </head>
 <body>
 
@@ -38,6 +38,7 @@
       <h1>ベビま 名付けノート</h1>
     </div>
     <div class="top-actions">
+      <button id="updatesBtn" class="updatebtn">更新履歴</button>
       <button id="settingsBtn" class="iconbtn">⚙︎</button>
       <button id="logoutBtn" class="logoutbtn">ログアウト</button>
     </div>
@@ -63,11 +64,16 @@
             <input id="strokesInput" inputmode="numeric" placeholder="名前から自動取得" readonly>
             <button id="manualStrokeBtn" type="button" class="mini-btn">手入力</button>
           </div>
-          <span id="strokeStatus" class="field-status">名前を入力すると自動取得しま</span>
+          <span id="strokeStatus" class="field-status">名前を入力すると自動取得しま（漢字・かな対応）</span>
         </label>
         <label>タグ
-          <input id="tagsInput" placeholder="例：一文字,自然,やさしい響き">
-          <div id="tagSuggestions" class="tag-suggestions"></div>
+          <input id="tagsInput" type="hidden">
+          <span class="field-status">過去に使ったタグから選択しま</span>
+          <div id="tagSuggestions" class="tag-suggestions tag-picker"></div>
+          <div class="new-tag-row">
+            <input id="newTagInput" placeholder="新しいタグを追加">
+            <button id="addNewTagBtn" type="button" class="mini-btn">追加</button>
+          </div>
         </label>
         <label>漢字の意味<input id="meaningInput" placeholder="例：風がやみ、波が静まる"></label>
         <label>名乗り読み<input id="nanoriInput" placeholder="例：なぎ"></label>
@@ -132,6 +138,96 @@
   </main>
 </div>
 
+
+<dialog id="updatesDialog">
+  <div class="dialog-card updates-dialog-card">
+    <div class="dialog-head">
+      <div>
+        <div class="eyebrow">BABYMA NAMING NOTE</div>
+        <h2>アップデート履歴</h2>
+      </div>
+      <button id="closeUpdatesBtn" class="iconbtn">×</button>
+    </div>
+
+    <div class="current-version">現在のバージョン <strong>v4.2</strong></div>
+
+    <div class="update-history">
+      <section class="update-entry latest">
+        <div class="version-line"><strong>v4.2</strong><span>最新</span></div>
+        <ul>
+          <li>アプリ内に「アップデート履歴」を追加</li>
+          <li>これまでの機能追加・修正内容を一覧で確認可能に</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v4.1</strong></div>
+        <ul>
+          <li>ひらがな・カタカナ・小書きかな・濁音・半濁音・「ー」の画数自動取得に対応</li>
+          <li>かなは姓名判断用の画数表を採用</li>
+          <li>タグを「過去の一覧から選択」が基本のUIに変更</li>
+          <li>新しいタグは手動で追加可能</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v4.0</strong></div>
+        <ul>
+          <li>漢字の画数を自動取得</li>
+          <li>追加済み候補の編集機能を追加</li>
+          <li>過去に使ったタグを再利用できるように</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v3.2</strong></div>
+        <ul>
+          <li>Safari / GitHub Pagesのキャッシュ対策を追加</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v3.1</strong></div>
+        <ul>
+          <li>ログイン後もログイン画面が残る表示不具合を修正</li>
+          <li>ログイン直後の一時的なJWT時刻エラーを自動再試行するよう改善</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v3.0</strong></div>
+        <ul>
+          <li>Supabase Authによるメールアドレス＋パスワード認証を追加</li>
+          <li>まこしゃ・なえちゃだけが共有データへアクセスできる構成に変更</li>
+          <li>ログアウト機能を追加</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v2.0</strong></div>
+        <ul>
+          <li>候補比較（最大4件）を追加</li>
+          <li>「候補・保留・却下」の状態管理を追加</li>
+          <li>まこしゃ★ / なえちゃ★ を別々に管理</li>
+          <li>漢字の意味・名乗り読み・書き順メモを追加</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v1.0</strong></div>
+        <ul>
+          <li>「文谷」と並べた名前候補表示</li>
+          <li>読み・画数・文字数などでソート</li>
+          <li>提案者と日時つき履歴を記録</li>
+          <li>自分の履歴だけ削除可能</li>
+          <li>タグ・コメント・お気に入り機能を追加</li>
+          <li>Supabaseによる2人での共有に対応</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="settingsDialog">
   <div class="dialog-card">
     <div class="dialog-head"><h2>あなたの設定</h2><button id="closeSettingsBtn" class="iconbtn">×</button></div>
@@ -156,8 +252,13 @@
         <span id="editStrokeStatus" class="field-status"></span>
       </label>
       <label>タグ
-        <input id="editTags">
-        <div id="editTagSuggestions" class="tag-suggestions"></div>
+        <input id="editTags" type="hidden">
+        <span class="field-status">過去に使ったタグから選択しま</span>
+        <div id="editTagSuggestions" class="tag-suggestions tag-picker"></div>
+        <div class="new-tag-row">
+          <input id="editNewTagInput" placeholder="新しいタグを追加">
+          <button id="editAddNewTagBtn" type="button" class="mini-btn">追加</button>
+        </div>
       </label>
       <label>漢字の意味<input id="editMeaning"></label>
       <label>名乗り読み<input id="editNanori"></label>
@@ -211,7 +312,7 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./config.js?v=4.0"></script>
-<script src="./app.js?v=4.0"></script>
+<script src="./config.js?v=4.2"></script>
+<script src="./app.js?v=4.2"></script>
 </body>
 </html>

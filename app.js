@@ -14,11 +14,18 @@ const statusName=s=>({candidate:"候補",hold:"保留",rejected:"却下"}[s]||"�
 const isKanji=ch=>/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u.test(ch);
 const debounce=(fn,ms=500)=>{let t;return(...args)=>{clearTimeout(t);t=setTimeout(()=>fn(...args),ms)}};
 
+const HIRA_STROKES={"あ":3,"い":2,"う":2,"え":3,"お":4,"か":3,"き":4,"く":1,"け":3,"こ":2,"さ":3,"し":1,"す":3,"せ":3,"そ":4,"た":4,"ち":3,"つ":1,"て":2,"と":2,"な":5,"に":3,"ぬ":3,"ね":4,"の":1,"は":4,"ひ":2,"ふ":4,"へ":1,"ほ":5,"ま":4,"み":3,"む":4,"め":2,"も":3,"や":3,"ゆ":3,"よ":3,"ら":3,"り":2,"る":3,"れ":3,"ろ":2,"わ":3,"ゐ":3,"ゑ":5,"を":4,"ん":2};
+const KATA_STROKES={"ア":2,"イ":2,"ウ":3,"エ":3,"オ":3,"カ":2,"キ":3,"ク":2,"ケ":3,"コ":2,"サ":3,"シ":3,"ス":2,"セ":2,"ソ":2,"タ":3,"チ":3,"ツ":3,"テ":3,"ト":2,"ナ":2,"ニ":2,"ヌ":2,"ネ":4,"ノ":1,"ハ":2,"ヒ":2,"フ":1,"ヘ":1,"ホ":4,"マ":2,"ミ":3,"ム":2,"メ":2,"モ":3,"ヤ":2,"ユ":2,"ヨ":3,"ラ":2,"リ":2,"ル":2,"レ":1,"ロ":3,"ワ":2,"ヰ":4,"ヱ":3,"ヲ":3,"ン":2};
+const SMALL_KANA={"ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お","ゃ":"や","ゅ":"ゆ","ょ":"よ","っ":"つ","ゎ":"わ","ァ":"ア","ィ":"イ","ゥ":"ウ","ェ":"エ","ォ":"オ","ャ":"ヤ","ュ":"ユ","ョ":"ヨ","ッ":"ツ","ヮ":"ワ"};
+const VOICED={"が":"か","ぎ":"き","ぐ":"く","げ":"け","ご":"こ","ざ":"さ","じ":"し","ず":"す","ぜ":"せ","ぞ":"そ","だ":"た","ぢ":"ち","づ":"つ","で":"て","ど":"と","ば":"は","び":"ひ","ぶ":"ふ","べ":"へ","ぼ":"ほ","ゔ":"う","ガ":"カ","ギ":"キ","グ":"ク","ゲ":"ケ","ゴ":"コ","ザ":"サ","ジ":"シ","ズ":"ス","ゼ":"セ","ゾ":"ソ","ダ":"タ","ヂ":"チ","ヅ":"ツ","デ":"テ","ド":"ト","バ":"ハ","ビ":"ヒ","ブ":"フ","ベ":"ヘ","ボ":"ホ","ヴ":"ウ"};
+const SEMIVOICED={"ぱ":"は","ぴ":"ひ","ぷ":"ふ","ぺ":"へ","ぽ":"ほ","パ":"ハ","ピ":"ヒ","プ":"フ","ペ":"ヘ","ポ":"ホ"};
+function kanaStroke(ch){if(ch==="ー")return 1;const n=SMALL_KANA[ch]||ch;if(HIRA_STROKES[n]!=null)return HIRA_STROKES[n];if(KATA_STROKES[n]!=null)return KATA_STROKES[n];if(VOICED[ch]){const base=VOICED[ch];return (HIRA_STROKES[base]??KATA_STROKES[base])+2}if(SEMIVOICED[ch]){const base=SEMIVOICED[ch];return (HIRA_STROKES[base]??KATA_STROKES[base])+1}return null;}
+
 function parseTags(value){
  return [...new Set((value||"").split(",").map(x=>x.trim()).filter(Boolean))];
 }
-function allTags(){
- return [...new Set(state.candidates.flatMap(c=>c.tags||[]))].sort((a,b)=>a.localeCompare(b,"ja"));
+function allTags(extra=[]){
+ return [...new Set([...state.candidates.flatMap(c=>c.tags||[]),...extra])].sort((a,b)=>a.localeCompare(b,"ja"));
 }
 function toggleTagInput(input,tag){
  const tags=parseTags(input.value);
@@ -29,38 +36,22 @@ function toggleTagInput(input,tag){
 function renderTagSuggestions(container,input){
  container.innerHTML="";
  const current=parseTags(input.value);
- allTags().forEach(tag=>{
-   const b=document.createElement("button");
-   b.type="button";b.className="tag-suggestion"+(current.includes(tag)?" selected":"");
-   b.textContent="#"+tag;
-   b.onclick=()=>{toggleTagInput(input,tag);renderTagSuggestions(container,input)};
-   container.appendChild(b);
+ allTags(current).forEach(tag=>{
+   const btn=document.createElement("button");btn.type="button";btn.className="tag-suggestion"+(current.includes(tag)?" selected":"");btn.textContent=(current.includes(tag)?"✓ ":"#")+tag;
+   btn.onclick=()=>{toggleTagInput(input,tag);renderTagSuggestions(container,input)};container.appendChild(btn);
  });
 }
+function addManualTag(input,newInput,container){
+ const tag=newInput.value.trim().replace(/^#/,"");if(!tag)return;const tags=parseTags(input.value);if(!tags.includes(tag))tags.push(tag);input.value=tags.join(",");newInput.value="";renderTagSuggestions(container,input);
+}
+
 async function fetchStrokeInfo(name,input,statusEl){
  const chars=[...(name||"").trim()];
- if(!chars.length){input.value="";input.dataset.total="";statusEl.textContent="名前を入力すると自動取得しま";return null}
- const kanji=chars.filter(isKanji);
- if(!kanji.length){input.value="";input.dataset.total="";statusEl.textContent="漢字がないため自動取得できなま";return null}
+ if(!chars.length){input.value="";input.dataset.total="";statusEl.textContent="名前を入力すると自動取得しま（漢字・かな対応）";return null}
  statusEl.textContent="画数を取得中…";
- try{
-   const rows=await Promise.all(kanji.map(async ch=>{
-     const r=await fetch("https://kanjiapi.dev/v1/kanji/"+encodeURIComponent(ch));
-     if(!r.ok) throw new Error(ch);
-     const j=await r.json();
-     return {ch,strokes:j.stroke_count};
-   }));
-   const text=rows.map(x=>x.strokes).join("+");
-   const total=rows.reduce((n,x)=>n+x.strokes,0);
-   input.value=text;
-   input.dataset.total=String(total);
-   statusEl.textContent=rows.map(x=>`${x.ch} ${x.strokes}画`).join(" ／ ")+` → 合計 ${total}画`;
-   return total;
- }catch(e){
-   input.value="";input.dataset.total="";
-   statusEl.textContent="自動取得できなま。手入力を使ってま";
-   return null;
- }
+ try{const rows=[];for(const ch of chars){const ks=kanaStroke(ch);if(ks!=null){rows.push({ch,strokes:ks});continue}if(isKanji(ch)){const r=await fetch("https://kanjiapi.dev/v1/kanji/"+encodeURIComponent(ch));if(!r.ok)throw new Error(ch);const j=await r.json();rows.push({ch,strokes:j.stroke_count});continue}throw new Error(ch)}
+ const total=rows.reduce((n,x)=>n+x.strokes,0);input.value=rows.map(x=>x.strokes).join("+");input.dataset.total=String(total);statusEl.textContent=rows.map(x=>`${x.ch} ${x.strokes}画`).join(" ／ ")+` → 合計 ${total}画`;return total;
+ }catch(e){input.value="";input.dataset.total="";statusEl.textContent=`「${e.message||"一部の文字"}」の画数を自動取得できなま。手入力を使ってま`;return null}
 }
 function enableManualStroke(input,statusEl){
  input.readOnly=false;input.focus();statusEl.textContent="手入力モードま";
@@ -149,7 +140,7 @@ async function addCandidate(){
  if(error){alert(error.message);return}
  await history("候補追加",data);await refresh();
  ["#nameInput","#readingInput","#strokesInput","#tagsInput","#memoInput","#meaningInput","#nanoriInput","#strokeOrderInput"].forEach(s=>$(s).value="");
- $("#strokesInput").dataset.total="";$("#strokesInput").readOnly=true;$("#strokeStatus").textContent="名前を入力すると自動取得しま";
+ $("#strokesInput").dataset.total="";$("#strokesInput").readOnly=true;$("#strokeStatus").textContent="名前を入力すると自動取得しま（漢字・かな対応）";
  renderTagSuggestions($("#tagSuggestions"),$("#tagsInput"));preview();
 }
 async function updateCandidate(c,patch,action,detail=""){
@@ -189,7 +180,7 @@ function openEdit(c){
  $("#editStrokes").dataset.total=c.stroke_total==null?"":String(c.stroke_total);
  $("#editStrokes").readOnly=true;
  $("#editStrokeStatus").textContent=c.stroke_total!=null?`現在 ${c.stroke_total}画`:"名前を変更すると自動取得しま";
- $("#editTags").value=(c.tags||[]).join(",");
+ $("#editTags").value=(c.tags||[]).join(",");$("#editNewTagInput").value="";
  $("#editMeaning").value=c.meaning||"";
  $("#editNanori").value=c.nanori||"";
  $("#editStrokeOrder").value=c.stroke_order||"";
@@ -281,16 +272,20 @@ const autoStrokeEdit=debounce(()=>fetchStrokeInfo($("#editName").value,$("#editS
 $("#nameInput").oninput=()=>{preview();$("#strokesInput").readOnly=true;autoStrokeAdd()};
 $("#readingInput").oninput=preview;
 $("#manualStrokeBtn").onclick=()=>enableManualStroke($("#strokesInput"),$("#strokeStatus"));
-$("#tagsInput").oninput=()=>renderTagSuggestions($("#tagSuggestions"),$("#tagsInput"));
+$("#addNewTagBtn").onclick=()=>addManualTag($("#tagsInput"),$("#newTagInput"),$("#tagSuggestions"));
+$("#newTagInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addManualTag($("#tagsInput"),$("#newTagInput"),$("#tagSuggestions"))}});
 
 $("#editName").oninput=()=>{$("#editStrokes").readOnly=true;autoStrokeEdit()};
 $("#editManualStrokeBtn").onclick=()=>enableManualStroke($("#editStrokes"),$("#editStrokeStatus"));
-$("#editTags").oninput=()=>renderTagSuggestions($("#editTagSuggestions"),$("#editTags"));
+$("#editAddNewTagBtn").onclick=()=>addManualTag($("#editTags"),$("#editNewTagInput"),$("#editTagSuggestions"));
+$("#editNewTagInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addManualTag($("#editTags"),$("#editNewTagInput"),$("#editTagSuggestions"))}});
 $("#saveEditBtn").onclick=saveEdit;
 $("#closeEditBtn").onclick=()=>{state.editing=null;$("#editDialog").close()};
 
 $("#addBtn").onclick=addCandidate;$("#searchInput").oninput=render;$("#sortSelect").onchange=render;$("#statusFilter").onchange=render;
 $("#clearCompareBtn").onclick=()=>{state.compare=[];storage.set("babyma_compare",[]);render()};
+$("#updatesBtn").onclick=()=>$("#updatesDialog").showModal();
+$("#closeUpdatesBtn").onclick=()=>$("#updatesDialog").close();
 $("#settingsBtn").onclick=()=>$("#settingsDialog").showModal();$("#closeSettingsBtn").onclick=()=>$("#settingsDialog").close();
 $("#saveSettingsBtn").onclick=()=>{state.actor=$("#actorInput").value.trim();storage.set("babyma_actor",state.actor);$("#settingsDialog").close();render()};
 init();
