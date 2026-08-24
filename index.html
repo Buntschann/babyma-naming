@@ -11,157 +11,170 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<header class="topbar">
-  <div>
+
+<section id="authScreen" class="auth-screen">
+  <div class="auth-card">
     <div class="eyebrow">BABYMA NAMING NOTE</div>
     <h1>ベビま 名付けノート</h1>
-  </div>
-  <button id="settingsBtn" class="iconbtn">⚙︎</button>
-</header>
+    <p class="auth-copy">家族専用ま 🔐</p>
 
-<main class="wrap">
-  <section class="hero card">
-    <div>
-      <div class="label">苗字と並べて確認</div>
-      <div id="previewName" class="preview-name">文谷　——</div>
-      <div id="previewReading" class="preview-reading">ぶんや　——</div>
-    </div>
-    <span id="syncBadge" class="badge">端末保存</span>
-  </section>
-
-  <section class="card">
-    <h2>候補を追加</h2>
-    <div class="form-grid">
-      <label>名前<input id="nameInput" maxlength="8" placeholder="例：凪"></label>
-      <label>読み<input id="readingInput" maxlength="16" placeholder="例：なぎ"></label>
-      <label>画数<input id="strokesInput" inputmode="numeric" placeholder="例：6 または 6+8"></label>
-      <label>タグ<input id="tagsInput" placeholder="例：一文字,自然,やさしい響き"></label>
-      <label>漢字の意味<input id="meaningInput" placeholder="例：風がやみ、波が静まる"></label>
-      <label>名乗り読み<input id="nanoriInput" placeholder="例：なぎ"></label>
-      <label class="wide">書き順メモ<input id="strokeOrderInput" maxlength="160" placeholder="例：1画目は横、2画目は縦…／参考URLなど"></label>
-      <label class="wide">メモ<input id="memoInput" maxlength="160" placeholder="意味・印象・由来など"></label>
-    </div>
-    <button id="addBtn" class="primary">候補に追加</button>
-  </section>
-
-  <section class="controls card">
-    <div class="control-row">
-      <label class="grow">検索<input id="searchInput" placeholder="名前・読み・メモ・タグ・提案者・意味"></label>
-      <label>状態
-        <select id="statusFilter">
-          <option value="all">すべて</option>
-          <option value="candidate">候補</option>
-          <option value="hold">保留</option>
-          <option value="rejected">却下</option>
-        </select>
-      </label>
-      <label>並び順
-        <select id="sortSelect">
-          <option value="created_desc">追加順（新しい順）</option>
-          <option value="created_asc">追加順（古い順）</option>
-          <option value="reading_asc">読み（あ→ん）</option>
-          <option value="reading_desc">読み（ん→あ）</option>
-          <option value="strokes_asc">画数（少→多）</option>
-          <option value="strokes_desc">画数（多→少）</option>
-          <option value="chars_asc">文字数（少→多）</option>
-          <option value="chars_desc">文字数（多→少）</option>
-          <option value="likes_desc">★合計（多→少）</option>
-          <option value="proposer_asc">提案者</option>
-        </select>
-      </label>
-    </div>
-    <div id="stats" class="stats"></div>
-  </section>
-
-  <section class="card compare-box">
-    <div class="compare-head">
-      <div><h2>比較</h2><div class="hint">候補カードの「比較に追加」で最大4件まで並べられま。</div></div>
-      <button id="clearCompareBtn" class="secondary">クリア</button>
-    </div>
-    <div id="compareGrid" class="compare-grid"></div>
-  </section>
-
-  <section>
-    <div id="candidateList" class="candidate-list"></div>
-    <div id="emptyState" class="empty card">
-      <div class="empty-emoji">👶</div>
-      <div>条件に合う候補がなま。</div>
-    </div>
-  </section>
-
-  <section class="card history-card">
-    <details>
-      <summary>履歴を見る <span id="historyCount"></span></summary>
-      <p class="hint">自分が作った履歴だけ削除できま。</p>
-      <div id="historyList" class="history-list"></div>
-    </details>
-  </section>
-</main>
-
-<dialog id="settingsDialog">
-  <div class="dialog-card">
-    <div class="dialog-head"><h2>共有設定</h2><button id="closeSettingsBtn" class="iconbtn">×</button></div>
-    <label>あなたの表示名<input id="actorInput" placeholder="まこしゃ / なえちゃ"></label>
-    <label>家族コード
-      <div class="inline">
-        <input id="roomInput" placeholder="例：BABYMA-ABC123">
-        <button id="generateRoomBtn" type="button" class="secondary">生成</button>
-      </div>
+    <label>メールアドレス
+      <input id="loginEmail" type="email" autocomplete="username" placeholder="name@example.com">
     </label>
-    <div class="sync-config">
-      <h3>2人で共有する場合</h3>
-      <p class="hint">Supabaseを設定すると2台で共有できま。</p>
-      <label>Supabase Project URL<input id="supabaseUrlInput" placeholder="https://xxxxx.supabase.co"></label>
-      <label>Supabase anon key<input id="supabaseKeyInput" placeholder="eyJ..."></label>
-    </div>
-    <button id="saveSettingsBtn" class="primary">保存して同期</button>
-  </div>
-</dialog>
 
-<template id="candidateTemplate">
-  <article class="candidate card">
-    <div class="candidate-main">
-      <div class="full-name"></div>
-      <div class="full-reading"></div>
-      <div class="chips"></div>
-      <div class="status-line">
+    <label>パスワード
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••">
+    </label>
+
+    <button id="loginBtn" class="primary">ログイン</button>
+    <div id="loginMessage" class="login-message"></div>
+  </div>
+</section>
+
+<div id="appShell" hidden>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">BABYMA NAMING NOTE</div>
+      <h1>ベビま 名付けノート</h1>
+    </div>
+    <div class="top-actions">
+      <button id="settingsBtn" class="iconbtn">⚙︎</button>
+      <button id="logoutBtn" class="logoutbtn">ログアウト</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero card">
+      <div>
+        <div class="label">苗字と並べて確認</div>
+        <div id="previewName" class="preview-name">文谷　——</div>
+        <div id="previewReading" class="preview-reading">ぶんや　——</div>
+      </div>
+      <span id="syncBadge" class="badge">共有同期</span>
+    </section>
+
+    <section class="card">
+      <h2>候補を追加</h2>
+      <div class="form-grid">
+        <label>名前<input id="nameInput" maxlength="8" placeholder="例：凪"></label>
+        <label>読み<input id="readingInput" maxlength="16" placeholder="例：なぎ"></label>
+        <label>画数<input id="strokesInput" inputmode="numeric" placeholder="例：6 または 6+8"></label>
+        <label>タグ<input id="tagsInput" placeholder="例：一文字,自然,やさしい響き"></label>
+        <label>漢字の意味<input id="meaningInput" placeholder="例：風がやみ、波が静まる"></label>
+        <label>名乗り読み<input id="nanoriInput" placeholder="例：なぎ"></label>
+        <label class="wide">書き順メモ<input id="strokeOrderInput" maxlength="160" placeholder="例：参考URL／書き順メモ"></label>
+        <label class="wide">メモ<input id="memoInput" maxlength="160" placeholder="意味・印象・由来など"></label>
+      </div>
+      <button id="addBtn" class="primary">候補に追加</button>
+    </section>
+
+    <section class="controls card">
+      <div class="control-row">
+        <label class="grow">検索<input id="searchInput" placeholder="名前・読み・メモ・タグ・提案者・意味"></label>
         <label>状態
-          <select class="status-select">
+          <select id="statusFilter">
+            <option value="all">すべて</option>
             <option value="candidate">候補</option>
             <option value="hold">保留</option>
             <option value="rejected">却下</option>
           </select>
         </label>
+        <label>並び順
+          <select id="sortSelect">
+            <option value="created_desc">追加順（新しい順）</option>
+            <option value="created_asc">追加順（古い順）</option>
+            <option value="reading_asc">読み（あ→ん）</option>
+            <option value="reading_desc">読み（ん→あ）</option>
+            <option value="strokes_asc">画数（少→多）</option>
+            <option value="strokes_desc">画数（多→少）</option>
+            <option value="chars_asc">文字数（少→多）</option>
+            <option value="chars_desc">文字数（多→少）</option>
+            <option value="likes_desc">★合計（多→少）</option>
+            <option value="proposer_asc">提案者</option>
+          </select>
+        </label>
       </div>
-      <div class="vote-row">
-        <button class="vote vote-mako">☆ まこしゃ</button>
-        <button class="vote vote-nae">☆ なえちゃ</button>
+      <div id="stats" class="stats"></div>
+    </section>
+
+    <section class="card compare-box">
+      <div class="compare-head">
+        <div><h2>比較</h2><div class="hint">候補カードの「比較に追加」で最大4件まで並べられま。</div></div>
+        <button id="clearCompareBtn" class="secondary">クリア</button>
       </div>
-      <p class="memo"></p>
-      <div class="info-grid">
-        <div><span class="info-label">漢字の意味</span><div class="meaning"></div></div>
-        <div><span class="info-label">名乗り読み</span><div class="nanori"></div></div>
-        <div class="wide-info"><span class="info-label">書き順</span><div class="stroke-order"></div></div>
+      <div id="compareGrid" class="compare-grid"></div>
+    </section>
+
+    <section>
+      <div id="candidateList" class="candidate-list"></div>
+      <div id="emptyState" class="empty card">
+        <div class="empty-emoji">👶</div>
+        <div>条件に合う候補がなま。</div>
       </div>
-      <div class="comment-area">
-        <div class="comment-list"></div>
-        <div class="comment-compose">
-          <input class="comment-input" maxlength="140" placeholder="コメントを書く">
-          <button class="comment-add secondary">送信</button>
-        </div>
+    </section>
+
+    <section class="card history-card">
+      <details>
+        <summary>履歴を見る <span id="historyCount"></span></summary>
+        <p class="hint">自分が作った履歴だけ削除できま。</p>
+        <div id="historyList" class="history-list"></div>
+      </details>
+    </section>
+  </main>
+</div>
+
+<dialog id="settingsDialog">
+  <div class="dialog-card">
+    <div class="dialog-head"><h2>あなたの設定</h2><button id="closeSettingsBtn" class="iconbtn">×</button></div>
+    <label>表示名<input id="actorInput" placeholder="まこしゃ / なえちゃ"></label>
+    <div id="signedInAs" class="signed-in-as"></div>
+    <button id="saveSettingsBtn" class="primary">保存</button>
+  </div>
+</dialog>
+
+<template id="candidateTemplate">
+  <article class="candidate card">
+    <div class="full-name"></div>
+    <div class="full-reading"></div>
+    <div class="chips"></div>
+    <div class="status-line">
+      <label>状態
+        <select class="status-select">
+          <option value="candidate">候補</option>
+          <option value="hold">保留</option>
+          <option value="rejected">却下</option>
+        </select>
+      </label>
+    </div>
+    <div class="vote-row">
+      <button class="vote vote-mako">☆ まこしゃ</button>
+      <button class="vote vote-nae">☆ なえちゃ</button>
+    </div>
+    <p class="memo"></p>
+    <div class="info-grid">
+      <div><span class="info-label">漢字の意味</span><div class="meaning"></div></div>
+      <div><span class="info-label">名乗り読み</span><div class="nanori"></div></div>
+      <div class="wide-info"><span class="info-label">書き順</span><div class="stroke-order"></div></div>
+    </div>
+    <div class="comment-area">
+      <div class="comment-list"></div>
+      <div class="comment-compose">
+        <input class="comment-input" maxlength="140" placeholder="コメントを書く">
+        <button class="comment-add secondary">送信</button>
       </div>
-      <div class="candidate-foot">
-        <time class="created"></time>
-        <div class="actions">
-          <button class="compare-add secondary">比較に追加</button>
-          <button class="delete secondary">削除</button>
-        </div>
+    </div>
+    <div class="candidate-foot">
+      <time class="created"></time>
+      <div class="actions">
+        <button class="compare-add secondary">比較に追加</button>
+        <button class="delete secondary">削除</button>
       </div>
     </div>
   </article>
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./config.js"></script>
 <script src="./app.js"></script>
 </body>
 </html>
