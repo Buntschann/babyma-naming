@@ -41,6 +41,7 @@ async function login(){
  await enter(data.user);
 }
 async function enter(user){
+ $("#loginMessage").textContent="";
  state.user=user;
  state.actor=storage.get("babyma_actor","");
  $("#actorInput").value=state.actor;
@@ -54,17 +55,25 @@ async function logout(){
  state.candidates=[];state.history=[];state.comments=[];
  showAuth("ログアウトしまし。");
 }
-async function refresh(){
+async function refresh(retry=0){
  const [a,b,c]=await Promise.all([
   sb.from("name_candidates").select("*").eq("room_code",ROOM).order("created_at",{ascending:false}),
   sb.from("name_history").select("*").eq("room_code",ROOM).order("created_at",{ascending:false}),
   sb.from("name_comments").select("*").eq("room_code",ROOM).order("created_at",{ascending:true})
  ]);
- if(a.error||b.error||c.error){
-   console.error(a.error||b.error||c.error);
-   alert("共有データを読み込めなま：" + (a.error||b.error||c.error).message);
+ const err=a.error||b.error||c.error;
+ if(err){
+   console.error(err);
+   if(retry < 3 && /JWT issued at future/i.test(err.message||"")){
+     $("#syncBadge").textContent="同期準備中…";
+     await new Promise(r=>setTimeout(r,1500));
+     return refresh(retry+1);
+   }
+   alert("共有データを読み込めなま：" + err.message);
+   $("#syncBadge").textContent="同期エラー";
    return
  }
+ $("#syncBadge").textContent="共有同期";
  state.candidates=(a.data||[]).map(x=>({...x,likes:{mako:!!x.like_mako,nae:!!x.like_nae}}));
  state.history=b.data||[];state.comments=c.data||[];
  state.compare=storage.get("babyma_compare",[]);
