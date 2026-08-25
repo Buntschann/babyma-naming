@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=4.2">
+  <link rel="stylesheet" href="./style.css?v=5.0">
 </head>
 <body>
 
@@ -149,11 +149,22 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v4.2</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.0</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v4.2</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.0</strong><span>最新</span></div>
+        <ul>
+          <li>子の名に使える漢字か自動チェック</li>
+          <li>漢字ごとの画数・音読み・訓読み・名乗り読み・辞書意味を自動表示</li>
+          <li>まこしゃ・なえちゃ別の5段階評価を追加</li>
+          <li>候補カードから、その候補だけの変更履歴を確認可能に</li>
+          <li>「○○くん」「○○さん」「文谷○○です」など呼び方プレビューを追加</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v4.2</strong></div>
         <ul>
           <li>アプリ内に「アップデート履歴」を追加</li>
           <li>これまでの機能追加・修正内容を一覧で確認可能に</li>
@@ -232,6 +243,13 @@
   <div class="dialog-card">
     <div class="dialog-head"><h2>あなたの設定</h2><button id="closeSettingsBtn" class="iconbtn">×</button></div>
     <label>表示名<input id="actorInput" placeholder="まこしゃ / なえちゃ"></label>
+    <label>この端末で評価する人
+      <select id="roleInput">
+        <option value="mako">まこしゃ</option>
+        <option value="nae">なえちゃ</option>
+      </select>
+    </label>
+    <div class="hint">5段階評価は、ここで選んだ本人の欄だけ編集できま。</div>
     <div id="signedInAs" class="signed-in-as"></div>
     <button id="saveSettingsBtn" class="primary">保存</button>
   </div>
@@ -274,6 +292,39 @@
     <div class="full-name"></div>
     <div class="full-reading"></div>
     <div class="chips"></div>
+
+    <div class="legal-check">
+      <span class="legal-status checking">使用可能文字を確認中…</span>
+      <span class="legal-note">※参考判定。出生届前に法務省の最新情報でも確認してま。</span>
+    </div>
+
+    <div class="call-preview">
+      <span class="info-label">呼び方プレビュー</span>
+      <div class="call-chips"></div>
+    </div>
+
+    <details class="auto-kanji-details">
+      <summary>漢字情報を自動表示</summary>
+      <div class="kanji-auto-info">読み込み中…</div>
+    </details>
+
+    <details class="rating-details">
+      <summary>2人の5段階評価</summary>
+      <div class="rating-table">
+        <div class="rating-head"><span>項目</span><strong>まこしゃ</strong><strong>なえちゃ</strong></div>
+        <div class="rating-row" data-key="sound"><span>響き</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+        <div class="rating-row" data-key="surname"><span>苗字との相性</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+        <div class="rating-row" data-key="meaning"><span>意味</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+        <div class="rating-row" data-key="writing"><span>書きやすさ</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+        <div class="rating-row" data-key="calling"><span>呼びやすさ</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+      </div>
+    </details>
+
+    <details class="candidate-history-details">
+      <summary>この候補の履歴</summary>
+      <div class="candidate-history"></div>
+    </details>
+
     <div class="status-line">
       <label>状態
         <select class="status-select">
@@ -312,7 +363,7 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./config.js?v=4.2"></script>
-<script src="./app.js?v=4.2"></script>
+<script src="./config.js?v=5.0"></script>
+<script src="./app.js?v=5.0"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s);
 const storage={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
 const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
-const state={candidates:[],history:[],comments:[],compare:[],actor:"",user:null,editing:null};
+const state={candidates:[],history:[],comments:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null};
 const ROOM="BABYMA";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
@@ -58,6 +58,116 @@ function enableManualStroke(input,statusEl){
 }
 
 
+
+const RATING_KEYS=["sound","surname","meaning","writing","calling"];
+const ratingOptions=()=>'<option value="">—</option>'+[1,2,3,4,5].map(n=>`<option value="${n}">${"★".repeat(n)}</option>`).join("");
+
+async function getLegalSets(){
+ if(state.legalSets)return state.legalSets;
+ const cached=storage.get("babyma_legal_kanji",null);
+ if(cached?.joyo?.length && cached?.jinmeiyo?.length){
+   state.legalSets={joyo:new Set(cached.joyo),jinmeiyo:new Set(cached.jinmeiyo)};
+   return state.legalSets;
+ }
+ try{
+   const [a,b]=await Promise.all([
+     fetch("https://kanjiapi.dev/v1/kanji/joyo").then(r=>r.json()),
+     fetch("https://kanjiapi.dev/v1/kanji/jinmeiyo").then(r=>r.json())
+   ]);
+   storage.set("babyma_legal_kanji",{joyo:a,jinmeiyo:b});
+   state.legalSets={joyo:new Set(a),jinmeiyo:new Set(b)};
+   return state.legalSets;
+ }catch(e){return null}
+}
+async function getKanjiDetail(ch){
+ if(state.kanjiCache[ch])return state.kanjiCache[ch];
+ try{
+   const r=await fetch("https://kanjiapi.dev/v1/kanji/"+encodeURIComponent(ch));
+   if(!r.ok)throw new Error(ch);
+   const j=await r.json();state.kanjiCache[ch]=j;return j;
+ }catch(e){return null}
+}
+async function renderLegalAndKanjiInfo(c,root){
+ const status=root.querySelector(".legal-status");
+ const info=root.querySelector(".kanji-auto-info");
+ const chars=[...c.name],kanji=chars.filter(isKanji);
+ const sets=await getLegalSets();
+
+ if(!kanji.length){
+   status.textContent="✓ 漢字なし（かな名）";status.className="legal-status ok";
+   info.innerHTML='<div class="kanji-info-item">漢字は含まれてなま。かなの画数は姓名判断用の設定で計算しま。</div>';
+   return;
+ }
+
+ if(sets){
+   const unusable=kanji.filter(ch=>!sets.joyo.has(ch)&&!sets.jinmeiyo.has(ch));
+   if(unusable.length){
+     status.textContent=`⚠ 使用可否を要確認：${unusable.join("・")}`;status.className="legal-status ng";
+   }else{
+     status.textContent="✓ 漢字はすべて子の名に使用可能";status.className="legal-status ok";
+   }
+ }else{
+   status.textContent="使用可能文字の確認に失敗";status.className="legal-status checking";
+ }
+
+ const details=await Promise.all(kanji.map(getKanjiDetail));
+ info.innerHTML="";
+ details.forEach((d,i)=>{
+   const ch=kanji[i],box=document.createElement("div");box.className="kanji-info-item";
+   if(!d){box.textContent=`${ch}：辞書情報を取得できなま`;info.appendChild(box);return}
+   const kind=sets ? (sets.jinmeiyo.has(ch)?"人名用漢字":sets.joyo.has(ch)?"常用漢字":"要確認") : "";
+   const on=(d.on_readings||[]).join("・")||"—";
+   const kun=(d.kun_readings||[]).join("・")||"—";
+   const names=(d.name_readings||[]).join("・")||"—";
+   const meanings=(d.meanings||[]).slice(0,5).join(", ")||"—";
+   box.innerHTML=`<span class="kanji-char">${esc(ch)}</span>${kind?`<span class="kanji-type">${esc(kind)}</span>`:""}
+   <div>画数：${d.stroke_count??"—"}画</div>
+   <div>音読み：${esc(on)}</div><div>訓読み：${esc(kun)}</div>
+   <div>名乗り：${esc(names)}</div><div>辞書意味（英語）：${esc(meanings)}</div>`;
+   info.appendChild(box);
+ });
+}
+function renderCallPreview(c,root){
+ const box=root.querySelector(".call-chips");box.innerHTML="";
+ [`${c.reading}くん`,`${c.reading}ちゃん`,`${c.reading}さん`,`文谷${c.name}です`].forEach(t=>{
+   const x=document.createElement("span");x.className="call-chip";x.textContent=t;box.appendChild(x);
+ });
+}
+function candidateHistory(c){
+ return state.history.filter(h=>h.candidate_id===c.id || (!h.candidate_id && h.candidate_name===c.name && h.candidate_reading===c.reading));
+}
+function renderCandidateHistory(c,root){
+ const box=root.querySelector(".candidate-history"),rows=candidateHistory(c);box.innerHTML="";
+ if(!rows.length){box.innerHTML='<div class="hint">この候補の履歴はまだなま。</div>';return}
+ rows.forEach(h=>{
+   const x=document.createElement("div");x.className="candidate-history-item";
+   x.innerHTML=`<strong>${esc(h.action)}</strong>${h.detail?`　${esc(h.detail)}`:""}<div class="candidate-history-meta">${esc(fmt(h.created_at))} ・ ${esc(h.actor||"")}</div>`;
+   box.appendChild(x);
+ });
+}
+function ratingsFor(c,role){return role==="mako"?(c.ratings_mako||{}):(c.ratings_nae||{})}
+function renderRatings(c,root){
+ const mako=ratingsFor(c,"mako"),nae=ratingsFor(c,"nae");
+ root.querySelectorAll(".rating-row").forEach(row=>{
+   const key=row.dataset.key,sm=row.querySelector(".rating-mako"),sn=row.querySelector(".rating-nae");
+   sm.innerHTML=ratingOptions();sn.innerHTML=ratingOptions();
+   sm.value=mako[key]??"";sn.value=nae[key]??"";
+   sm.disabled=state.role!=="mako";sn.disabled=state.role!=="nae";
+   sm.onchange=()=>saveRating(c,"mako",key,sm.value);
+   sn.onchange=()=>saveRating(c,"nae",key,sn.value);
+ });
+}
+async function saveRating(c,role,key,value){
+ if(state.role!==role)return;
+ const field=role==="mako"?"ratings_mako":"ratings_nae";
+ const obj={...(c[field]||{})};
+ if(value==="")delete obj[key];else obj[key]=Number(value);
+ const {error}=await sb.from("name_candidates").update({[field]:obj}).eq("id",c.id);
+ if(error){alert(error.message);return}
+ await history("5段階評価",c,`${role==="mako"?"まこしゃ":"なえちゃ"}：${key}=${value||"未評価"}`);
+ await refresh();
+}
+
 function configReady(){
  return cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY &&
  !cfg.SUPABASE_URL.includes("ここに") && !cfg.SUPABASE_PUBLISHABLE_KEY.includes("ここに");
@@ -90,7 +200,8 @@ async function enter(user){
  $("#loginMessage").textContent="";
  state.user=user;
  state.actor=storage.get("babyma_actor","");
- $("#actorInput").value=state.actor;
+ state.role=storage.get("babyma_role","mako");
+ $("#actorInput").value=state.actor;$("#roleInput").value=state.role;
  $("#signedInAs").textContent=`ログイン中：${user.email||""}`;
  showApp();
  if(!state.actor) $("#settingsDialog").showModal();
@@ -120,14 +231,14 @@ async function refresh(retry=0){
    return
  }
  $("#syncBadge").textContent="共有同期";
- state.candidates=(a.data||[]).map(x=>({...x,likes:{mako:!!x.like_mako,nae:!!x.like_nae}}));
+ state.candidates=(a.data||[]).map(x=>({...x,ratings_mako:x.ratings_mako||{},ratings_nae:x.ratings_nae||{},likes:{mako:!!x.like_mako,nae:!!x.like_nae}}));
  state.history=b.data||[];state.comments=c.data||[];
  state.compare=storage.get("babyma_compare",[]);
  render();
  renderTagSuggestions($("#tagSuggestions"),$("#tagsInput"));
 }
 async function history(action,c,detail=""){
- const row={room_code:ROOM,actor:state.actor||state.user?.email||"家族",owner_device_id:state.user.id,action,candidate_name:c?.name||"",candidate_reading:c?.reading||"",detail};
+ const row={room_code:ROOM,actor:state.actor||state.user?.email||"家族",owner_device_id:state.user.id,candidate_id:c?.id||null,action,candidate_name:c?.name||"",candidate_reading:c?.reading||"",detail};
  const {error}=await sb.from("name_history").insert(row);if(error)throw error;
 }
 async function addCandidate(){
@@ -135,7 +246,7 @@ async function addCandidate(){
  const name=$("#nameInput").value.trim(),reading=$("#readingInput").value.trim();if(!name||!reading){alert("名前と読みを入れてま！");return}
  const tags=parseTags($("#tagsInput").value);
  const autoTotal=$("#strokesInput").dataset.total ? Number($("#strokesInput").dataset.total) : strokeTotal($("#strokesInput").value);
- const row={room_code:ROOM,name,reading,strokes_text:$("#strokesInput").value.trim(),stroke_total:autoTotal,char_count:count(name),memo:$("#memoInput").value.trim(),tags,actor:state.actor,owner_device_id:state.user.id,status:"candidate",meaning:$("#meaningInput").value.trim(),nanori:$("#nanoriInput").value.trim(),stroke_order:$("#strokeOrderInput").value.trim(),like_mako:false,like_nae:false};
+ const row={room_code:ROOM,name,reading,strokes_text:$("#strokesInput").value.trim(),stroke_total:autoTotal,char_count:count(name),memo:$("#memoInput").value.trim(),tags,actor:state.actor,owner_device_id:state.user.id,status:"candidate",meaning:$("#meaningInput").value.trim(),nanori:$("#nanoriInput").value.trim(),stroke_order:$("#strokeOrderInput").value.trim(),like_mako:false,like_nae:false,ratings_mako:{},ratings_nae:{}};
  const {data,error}=await sb.from("name_candidates").insert(row).select().single();
  if(error){alert(error.message);return}
  await history("候補追加",data);await refresh();
@@ -254,7 +365,11 @@ function render(){
   const ca=n.querySelector(".compare-add");ca.textContent=state.compare.includes(c.id)?"比較から外す":"比較に追加";ca.onclick=()=>toggleCompare(c);
   n.querySelector(".edit").onclick=()=>openEdit(c);
   const cl=n.querySelector(".comment-list");state.comments.filter(x=>x.candidate_id===c.id).forEach(cm=>{let d=document.createElement("div");d.className="comment";d.innerHTML=`<div class="comment-meta">${esc(cm.actor)} ・ ${esc(fmt(cm.created_at))}</div>${esc(cm.comment)}`;cl.appendChild(d)});
-  const ci=n.querySelector(".comment-input");n.querySelector(".comment-add").onclick=()=>addComment(c,ci);list.appendChild(n);
+  const ci=n.querySelector(".comment-input");n.querySelector(".comment-add").onclick=()=>addComment(c,ci);
+  const card=n.querySelector(".candidate");
+  renderCallPreview(c,card);renderRatings(c,card);renderCandidateHistory(c,card);
+  list.appendChild(n);
+  renderLegalAndKanjiInfo(c,list.lastElementChild);
  });
  const hl=$("#historyList");hl.innerHTML="";$("#historyCount").textContent=`(${state.history.length})`;
  state.history.forEach(h=>{let d=document.createElement("div");d.className="history-item";let own=h.owner_device_id===state.user.id;d.innerHTML=`<div class="history-row"><div><strong>${esc(h.action)}</strong>　文谷 ${esc(h.candidate_name)}<div class="history-meta">${esc(fmt(h.created_at))} ・ ${esc(h.actor)}${h.detail?" ・ "+esc(h.detail):""}</div></div>${own?'<button class="history-delete secondary">自分の履歴を削除</button>':""}</div>`;if(own)d.querySelector(".history-delete").onclick=()=>deleteHistory(h);hl.appendChild(d)});
@@ -287,5 +402,5 @@ $("#clearCompareBtn").onclick=()=>{state.compare=[];storage.set("babyma_compare"
 $("#updatesBtn").onclick=()=>$("#updatesDialog").showModal();
 $("#closeUpdatesBtn").onclick=()=>$("#updatesDialog").close();
 $("#settingsBtn").onclick=()=>$("#settingsDialog").showModal();$("#closeSettingsBtn").onclick=()=>$("#settingsDialog").close();
-$("#saveSettingsBtn").onclick=()=>{state.actor=$("#actorInput").value.trim();storage.set("babyma_actor",state.actor);$("#settingsDialog").close();render()};
+$("#saveSettingsBtn").onclick=()=>{state.actor=$("#actorInput").value.trim();state.role=$("#roleInput").value;storage.set("babyma_actor",state.actor);storage.set("babyma_role",state.role);$("#settingsDialog").close();render()};
 init();
