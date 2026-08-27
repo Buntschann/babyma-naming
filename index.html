@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.0">
+  <link rel="stylesheet" href="./style.css?v=5.1">
 </head>
 <body>
 
@@ -83,6 +83,21 @@
       <button id="addBtn" class="primary">候補に追加</button>
     </section>
 
+
+    <section class="card kanji-stock-section">
+      <div class="section-head">
+        <div><h2>漢字ストック</h2><div class="hint">まだ名前候補ではないけど、いいと思った漢字を一旦キープしま。</div></div>
+        <span id="kanjiStockCount" class="badge">0字</span>
+      </div>
+      <div class="kanji-stock-add">
+        <label>漢字<input id="kanjiStockInput" maxlength="1" placeholder="例：凪"></label>
+        <label class="grow">メモ<input id="kanjiStockMemo" maxlength="100" placeholder="例：響きが好き、意味がいい"></label>
+        <button id="addKanjiStockBtn" class="secondary stock-add-btn">キープ</button>
+      </div>
+      <div id="kanjiStockList" class="kanji-stock-list"></div>
+      <div id="kanjiStockEmpty" class="stock-empty">まだストックがなま。</div>
+    </section>
+
     <section class="controls card">
       <div class="control-row">
         <label class="grow">検索<input id="searchInput" placeholder="名前・読み・メモ・タグ・提案者・意味"></label>
@@ -149,11 +164,22 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.0</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.1</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.0</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.1</strong><span>最新</span></div>
+        <ul>
+          <li>気になる漢字を一旦キープできる「漢字ストック」を追加</li>
+          <li>画数・読み・意味を自動表示</li>
+          <li>メモ・キープした人・日時を保存</li>
+          <li>ストック漢字を名前候補入力欄へ送れるように</li>
+          <li>まこしゃ・なえちゃで共有</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.0</strong></div>
         <ul>
           <li>子の名に使える漢字か自動チェック</li>
           <li>漢字ごとの画数・音読み・訓読み・名乗り読み・辞書意味を自動表示</li>
@@ -363,7 +389,7 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./config.js?v=5.0"></script>
-<script src="./app.js?v=5.0"></script>
+<script src="./config.js?v=5.1"></script>
+<script src="./app.js?v=5.1"></script>
 </body>
 </html>

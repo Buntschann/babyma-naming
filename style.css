@@ -108,3 +108,16 @@ dialog{border:0;border-radius:20px;padding:0;width:min(92vw,560px)}dialog::backd
 .candidate-history{display:grid;gap:6px;margin-top:8px}
 .candidate-history-item{background:#faf7f2;border-radius:10px;padding:8px;font-size:11px}
 .candidate-history-meta{font-size:9px;color:var(--sub);margin-top:2px}
+
+.section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.kanji-stock-add{display:flex;gap:8px;align-items:flex-end;margin-top:12px}
+.kanji-stock-add label:first-child{width:88px}.stock-add-btn{min-width:76px}
+.kanji-stock-list{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:14px}
+.kanji-stock-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}
+.kanji-stock-char{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:38px;font-weight:700;line-height:1}
+.kanji-stock-meta{font-size:10px;color:var(--sub);margin-top:5px}
+.kanji-stock-info{font-size:11px;line-height:1.55;margin-top:8px}
+.kanji-stock-memo{margin-top:8px;background:#faf7f2;border-radius:10px;padding:8px;font-size:11px}
+.kanji-stock-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.kanji-stock-actions button{min-height:34px}
+.stock-empty{text-align:center;color:var(--sub);font-size:11px;padding:18px 0}
+@media(max-width:560px){.kanji-stock-add{flex-wrap:wrap}.kanji-stock-add label:first-child{width:82px}.kanji-stock-list{grid-template-columns:1fr}}

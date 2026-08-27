@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s);
 const storage={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
 const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
-const state={candidates:[],history:[],comments:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null};
+const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null};
 const ROOM="BABYMA";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
@@ -209,16 +209,17 @@ async function enter(user){
 }
 async function logout(){
  await sb.auth.signOut();
- state.candidates=[];state.history=[];state.comments=[];
+ state.candidates=[];state.history=[];state.comments=[];state.kanjiStocks=[];
  showAuth("ログアウトしまし。");
 }
 async function refresh(retry=0){
- const [a,b,c]=await Promise.all([
+ const [a,b,c,d]=await Promise.all([
   sb.from("name_candidates").select("*").eq("room_code",ROOM).order("created_at",{ascending:false}),
   sb.from("name_history").select("*").eq("room_code",ROOM).order("created_at",{ascending:false}),
-  sb.from("name_comments").select("*").eq("room_code",ROOM).order("created_at",{ascending:true})
+  sb.from("name_comments").select("*").eq("room_code",ROOM).order("created_at",{ascending:true}),
+  sb.from("kanji_stocks").select("*").eq("room_code",ROOM).order("created_at",{ascending:false})
  ]);
- const err=a.error||b.error||c.error;
+ const err=a.error||b.error||c.error||d.error;
  if(err){
    console.error(err);
    if(retry < 3 && /JWT issued at future/i.test(err.message||"")){
@@ -232,9 +233,9 @@ async function refresh(retry=0){
  }
  $("#syncBadge").textContent="共有同期";
  state.candidates=(a.data||[]).map(x=>({...x,ratings_mako:x.ratings_mako||{},ratings_nae:x.ratings_nae||{},likes:{mako:!!x.like_mako,nae:!!x.like_nae}}));
- state.history=b.data||[];state.comments=c.data||[];
+ state.history=b.data||[];state.comments=c.data||[];state.kanjiStocks=d.data||[];
  state.compare=storage.get("babyma_compare",[]);
- render();
+ render();renderKanjiStocks();
  renderTagSuggestions($("#tagSuggestions"),$("#tagsInput"));
 }
 async function history(action,c,detail=""){
@@ -320,6 +321,40 @@ async function saveEdit(){
  await history("候補編集",{...c,...patch},"内容を更新");
  state.editing=null;$("#editDialog").close();await refresh();
 }
+
+async function addKanjiStock(){
+ const ch=$("#kanjiStockInput").value.trim(),memo=$("#kanjiStockMemo").value.trim();
+ if(!ch){alert("漢字を1文字入れてま！");return}
+ if([...ch].length!==1||!isKanji(ch)){alert("漢字1文字を入れてま！");return}
+ if(state.kanjiStocks.some(x=>x.kanji===ch)){alert(`${ch} はもうストック済みま！`);return}
+ const d=await getKanjiDetail(ch);
+ const row={room_code:ROOM,kanji:ch,stroke_count:d?.stroke_count??null,on_readings:d?.on_readings||[],kun_readings:d?.kun_readings||[],name_readings:d?.name_readings||[],meanings:d?.meanings||[],memo,actor:state.actor||state.user?.email||"家族",owner_user_id:state.user.id};
+ const {error}=await sb.from("kanji_stocks").insert(row);if(error){alert(error.message);return}
+ $("#kanjiStockInput").value="";$("#kanjiStockMemo").value="";await refresh();
+}
+async function deleteKanjiStock(x){
+ if(!confirm(`${x.kanji} を漢字ストックから外しま？`))return;
+ const {error}=await sb.from("kanji_stocks").delete().eq("id",x.id);if(error){alert(error.message);return}
+ await refresh();
+}
+function sendKanjiToCandidate(x){
+ $("#nameInput").value=x.kanji;preview();$("#nameInput").dispatchEvent(new Event("input"));
+ window.scrollTo({top:$("#nameInput").getBoundingClientRect().top+window.scrollY-120,behavior:"smooth"});
+ $("#readingInput").focus();
+}
+function renderKanjiStocks(){
+ const list=$("#kanjiStockList"),empty=$("#kanjiStockEmpty");list.innerHTML="";
+ $("#kanjiStockCount").textContent=`${state.kanjiStocks.length}字`;empty.hidden=state.kanjiStocks.length>0;
+ state.kanjiStocks.forEach(x=>{
+  const card=document.createElement("article");card.className="kanji-stock-card";
+  const on=(x.on_readings||[]).join("・")||"—",kun=(x.kun_readings||[]).join("・")||"—",names=(x.name_readings||[]).join("・")||"—",meanings=(x.meanings||[]).slice(0,4).join(", ")||"—";
+  card.innerHTML=`<div class="kanji-stock-char">${esc(x.kanji)}</div><div class="kanji-stock-meta">${x.stroke_count??"—"}画 ・ ${esc(x.actor||"家族")} ・ ${esc(fmt(x.created_at))}</div>
+  <div class="kanji-stock-info"><div>音：${esc(on)}</div><div>訓：${esc(kun)}</div><div>名乗り：${esc(names)}</div><div>意味：${esc(meanings)}</div></div>
+  ${x.memo?`<div class="kanji-stock-memo">${esc(x.memo)}</div>`:""}
+  <div class="kanji-stock-actions"><button class="secondary stock-use">名前候補に使う</button><button class="secondary stock-delete">ストックから外す</button></div>`;
+  card.querySelector(".stock-use").onclick=()=>sendKanjiToCandidate(x);card.querySelector(".stock-delete").onclick=()=>deleteKanjiStock(x);list.appendChild(card);
+ });
+}
 function toggleCompare(c){
  if(state.compare.includes(c.id)) state.compare=state.compare.filter(x=>x!==c.id);
  else {if(state.compare.length>=4){alert("比較は4件までま！");return}state.compare.push(c.id)}
@@ -397,6 +432,8 @@ $("#editNewTagInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preve
 $("#saveEditBtn").onclick=saveEdit;
 $("#closeEditBtn").onclick=()=>{state.editing=null;$("#editDialog").close()};
 
+$("#addKanjiStockBtn").onclick=addKanjiStock;
+$("#kanjiStockInput").addEventListener("keydown",e=>{if(e.key==="Enter")addKanjiStock()});
 $("#addBtn").onclick=addCandidate;$("#searchInput").oninput=render;$("#sortSelect").onchange=render;$("#statusFilter").onchange=render;
 $("#clearCompareBtn").onclick=()=>{state.compare=[];storage.set("babyma_compare",[]);render()};
 $("#updatesBtn").onclick=()=>$("#updatesDialog").showModal();
