@@ -5,6 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null};
 const ROOM="BABYMA";
+const APP_VERSION="5.2";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -168,6 +169,62 @@ async function saveRating(c,role,key,value){
  await refresh();
 }
 
+
+let toastTimer=null;
+function showToast(message,ms=2200){
+ const t=$("#appToast");if(!t)return;
+ t.textContent=message;t.hidden=false;clearTimeout(toastTimer);
+ toastTimer=setTimeout(()=>{t.hidden=true},ms);
+}
+async function fetchLatestVersion(){
+ const url=new URL("./version.json",location.href);
+ url.searchParams.set("_",Date.now().toString());
+ const r=await fetch(url.toString(),{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
+ if(!r.ok)throw new Error("version check failed");
+ return await r.json();
+}
+async function clearAppCaches(){
+ try{
+  if("caches" in window){
+   const keys=await caches.keys();
+   await Promise.all(keys.map(k=>caches.delete(k)));
+  }
+ }catch(e){console.warn(e)}
+}
+function reloadWithVersion(version){
+ const url=new URL(location.href);
+ url.searchParams.set("v",version);
+ url.searchParams.set("_",Date.now().toString());
+ location.replace(url.toString());
+}
+async function updateApp(forceReload=false){
+ const btn=$("#refreshAppBtn");
+ if(btn){btn.classList.add("updating");btn.textContent="↻ 確認中…"}
+ try{
+  const latest=await fetchLatestVersion();
+  if(forceReload||latest.version!==APP_VERSION){
+   showToast(`v${latest.version} に更新しま！`,1200);
+   await clearAppCaches();
+   setTimeout(()=>reloadWithVersion(latest.version),350);
+   return;
+  }
+  showToast(`最新版 v${APP_VERSION} ま！`);
+  if(state.user)await refresh();
+ }catch(e){
+  console.error(e);showToast("更新確認できなま。通信状態を確認してま",3000);
+ }finally{
+  if(btn){btn.classList.remove("updating");btn.textContent="↻ 更新"}
+ }
+}
+async function silentVersionCheck(){
+ try{
+  const latest=await fetchLatestVersion();
+  if(latest.version!==APP_VERSION){
+   const btn=$("#refreshAppBtn");
+   if(btn)btn.textContent=`↻ v${latest.version}あり`;
+  }
+ }catch(e){}
+}
 function configReady(){
  return cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY &&
  !cfg.SUPABASE_URL.includes("ここに") && !cfg.SUPABASE_PUBLISHABLE_KEY.includes("ここに");
@@ -206,6 +263,7 @@ async function enter(user){
  showApp();
  if(!state.actor) $("#settingsDialog").showModal();
  await refresh();
+ silentVersionCheck();
 }
 async function logout(){
  await sb.auth.signOut();
@@ -412,6 +470,7 @@ function render(){
 }
 function preview(){ $("#previewName").textContent=`文谷　${$("#nameInput").value.trim()||"——"}`;$("#previewReading").textContent=`ぶんや　${$("#readingInput").value.trim()||"——"}`}
 
+$("#refreshAppBtn").onclick=()=>updateApp(false);
 $("#loginBtn").onclick=login;
 $("#loginPassword").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
 $("#logoutBtn").onclick=logout;

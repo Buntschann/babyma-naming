@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.1">
+  <link rel="stylesheet" href="./style.css?v=5.2">
 </head>
 <body>
 
@@ -164,11 +164,20 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.1</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.2</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.1</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.2</strong><span>最新</span></div>
+        <ul>
+          <li>ホーム画面アプリ内に「更新」ボタンを追加</li>
+          <li>最新版をキャッシュ無視で確認</li>
+          <li>新バージョン公開時はキャッシュ削除＋強制再読み込み</li>
+          <li>アプリ起動時にも最新版の有無を確認</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.1</strong></div>
         <ul>
           <li>気になる漢字を一旦キープできる「漢字ストック」を追加</li>
           <li>画数・読み・意味を自動表示</li>
@@ -389,7 +398,8 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./config.js?v=5.1"></script>
-<script src="./app.js?v=5.1"></script>
+<script src="./config.js?v=5.2"></script>
+<script src="./app.js?v=5.2"></script>
+<div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
