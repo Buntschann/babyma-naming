@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names"};
 const ROOM="BABYMA";
-const APP_VERSION="5.4.1";
+const APP_VERSION="5.4.2";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -448,6 +448,11 @@ async function saveEdit(){
 function kanjiKinds(ch,sets){return sets?{joyo:sets.joyo.has(ch),jinmeiyo:sets.jinmeiyo.has(ch)}:{joyo:false,jinmeiyo:false}}
 function kindBadgesHtml(ch,sets){const k=kanjiKinds(ch,sets);let h="";if(k.joyo)h+='<span class="kind-badge kind-joyo">常用漢字</span>';if(k.jinmeiyo)h+='<span class="kind-badge kind-jinmeiyo">人名用漢字</span>';if(!k.joyo&&!k.jinmeiyo)h+='<span class="kind-badge kind-check">要確認</span>';return h}
 async function saveStockMemo(x,role,input){const field=role==="mako"?"memo_mako":"memo_nae";const {error}=await sb.from("kanji_stocks").update({[field]:input.value.trim()}).eq("id",x.id);if(error){alert(error.message);return}await refresh()}
+function dictionaryUsage(ch){
+ const inStock=state.kanjiStocks.some(x=>x.kanji===ch);
+ const inName=state.candidates.some(c=>[...(c.name||"")].includes(ch));
+ return {inStock,inName};
+}
 async function renderDictionary(){
  const grid=$("#dictionaryGrid"),status=$("#dictionaryStatus"),note=$("#dictionarySortNote");
  if(!grid)return;
@@ -511,12 +516,17 @@ async function renderDictionary(){
  grid.innerHTML="";
  const frag=document.createDocumentFragment();
  rows.forEach(x=>{
-   const b=document.createElement("button");b.type="button";b.className=`dictionary-char ${x.type}`;
+   const b=document.createElement("button");b.type="button";
+   const usage=dictionaryUsage(x.kanji);
+   const usageClass=usage.inStock&&usage.inName?"used-both":usage.inStock?"used-stock":usage.inName?"used-name":"";
+   b.className=`dictionary-char ${x.type} ${usageClass}`.trim();
    let meta="";
    if(sort.startsWith("stroke")&&x.stroke_count!=null)meta=`<span class="dictionary-char-meta">${x.stroke_count}画</span>`;
    else if(sort==="grade")meta=`<span class="dictionary-char-meta">${gradeLabel(x.grade)}</span>`;
    else if(sort==="radical"&&state.radicalMap?.[x.kanji])meta=`<span class="dictionary-char-meta">部${state.radicalMap[x.kanji].radical}</span>`;
-   b.innerHTML=`${esc(x.kanji)}${meta}`;b.onclick=()=>openDictionaryDetail(x.kanji);frag.appendChild(b)
+   const usageMark=usage.inStock&&usage.inName?"★名":usage.inStock?"★":usage.inName?"名":"";
+   b.innerHTML=`${esc(x.kanji)}${meta}${usageMark?`<span class="dictionary-usage-mark">${usageMark}</span>`:""}`;
+   b.onclick=()=>openDictionaryDetail(x.kanji);frag.appendChild(b)
  });
  grid.appendChild(frag);
 }

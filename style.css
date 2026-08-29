@@ -156,3 +156,14 @@ body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 .kanji-dictionary-section,.kanji-stock-section{min-height:calc(100dvh - 170px)}
 .dictionary-sort-loading{display:inline-block;margin-left:5px}
 .dictionary-char-meta{display:block;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;font-size:7px;color:var(--sub);font-weight:500;margin-top:1px}
+
+.dictionary-char.used-stock{background:#eef6ec;border-color:#cddfc8}
+.dictionary-char.used-name{background:#edf3f9;border-color:#cad8e7}
+.dictionary-char.used-both{background:#f1edf7;border-color:#d5cbe4}
+.dictionary-usage-mark{position:absolute;left:3px;bottom:2px;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;font-size:7px;font-weight:700;border-radius:4px;padding:1px 3px}
+.dictionary-char.used-stock .dictionary-usage-mark{background:#cfe3c9;color:#3f5b39}
+.dictionary-char.used-name .dictionary-usage-mark{background:#ccdaea;color:#405a72}
+.dictionary-char.used-both .dictionary-usage-mark{background:#d9cfea;color:#55466d}
+.dictionary-legend{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.dictionary-legend span{font-size:9px;border-radius:999px;padding:4px 7px}
+.legend-stock{background:#eef6ec}.legend-name{background:#edf3f9}.legend-both{background:#f1edf7}

@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.4.1">
+  <link rel="stylesheet" href="./style.css?v=5.4.2">
 </head>
 <body>
 
@@ -120,7 +120,13 @@
           </select>
         </label>
       </div>
-      <div id="dictionaryStatus" class="field-status">一覧を読み込み中…</div><div id="dictionarySortNote" class="field-status"></div>
+      <div id="dictionaryStatus" class="field-status">一覧を読み込み中…</div>
+      <div class="dictionary-legend">
+        <span class="legend-stock">★ ストック済み</span>
+        <span class="legend-name">名 名前候補に使用中</span>
+        <span class="legend-both">★名 両方</span>
+      </div>
+      <div id="dictionarySortNote" class="field-status"></div>
       <div id="dictionaryGrid" class="dictionary-grid"></div>
       <div id="dictionaryDetail" class="dictionary-detail" hidden>
         <div class="dictionary-detail-head"><div id="dictionaryDetailChar" class="dictionary-detail-char"></div><button id="closeDictionaryDetail" class="mini-btn">閉じる</button></div>
@@ -201,11 +207,18 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.4.1</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.4.2</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.4.1</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.4.2</strong><span>最新</span></div>
+        <ul>
+          <li>漢字辞典で「ストック済み」「名前候補に使用中」「両方」を背景色で区別</li>
+          <li>一覧に ★ / 名 / ★名 の状態マークを追加</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.4.1</strong></div>
         <ul>
           <li>v5.4でログインボタンが反応しなくなるJavaScript構文エラーを修正</li>
           <li>部首順データ解析の正規表現を修正</li>
@@ -477,8 +490,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.4.1"></script>
-<script src="./app.js?v=5.4.1"></script>
+<script src="./config.js?v=5.4.2"></script>
+<script src="./app.js?v=5.4.2"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
