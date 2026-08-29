@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.4">
+  <link rel="stylesheet" href="./style.css?v=5.4.1">
 </head>
 <body>
 
@@ -201,11 +201,19 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.4</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.4.1</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.4</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.4.1</strong><span>最新</span></div>
+        <ul>
+          <li>v5.4でログインボタンが反応しなくなるJavaScript構文エラーを修正</li>
+          <li>部首順データ解析の正規表現を修正</li>
+          <li>辞典UIの一部要素がなくてもログイン処理が止まらないよう防御を追加</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.4</strong></div>
         <ul>
           <li>「名前候補・漢字ストック・漢字辞典」を下部タブで3画面に整理</li>
           <li>漢字辞典に画数順・部首順・学年順・使用頻度順・JLPT順を追加</li>
@@ -469,8 +477,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.4"></script>
-<script src="./app.js?v=5.4"></script>
+<script src="./config.js?v=5.4.1"></script>
+<script src="./app.js?v=5.4.1"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>

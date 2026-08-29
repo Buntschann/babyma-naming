@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names"};
 const ROOM="BABYMA";
-const APP_VERSION="5.4";
+const APP_VERSION="5.4.1";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -273,7 +273,7 @@ async function ensureRadicalMap(){
    const parts=line.split("\t");if(parts.length<3)continue;
    const cp=parseInt(parts[0].slice(2),16),ch=String.fromCodePoint(cp);
    const first=parts[2].split(" ")[0];
-   const m=first.match(/^(\d+)('?{0,2})\.(-?\d+)/);
+   const m=first.match(/^(\d+)('{0,2})\.(-?\d+)/);
    if(m)map[ch]={radical:Number(m[1]),variant:m[2]||"",residual:Number(m[3])};
  }
  state.radicalMap=map;
@@ -645,12 +645,12 @@ $("#saveEditBtn").onclick=saveEdit;
 $("#closeEditBtn").onclick=()=>{state.editing=null;$("#editDialog").close()};
 
 document.querySelectorAll(".bottom-tab").forEach(b=>b.onclick=()=>switchAppTab(b.dataset.tab));
-$("#dictionarySearch").oninput=renderDictionary;
-$("#dictionaryTypeFilter").onchange=renderDictionary;
-$("#dictionarySort").onchange=renderDictionary;
-$("#closeDictionaryDetail").onclick=()=>{$("#dictionaryDetail").hidden=true;state.dictionarySelected=null};
-$("#dictionaryAddStockBtn").onclick=addDictionarySelectedToStock;
-$("#addKanjiStockBtn").onclick=addKanjiStock;
+if($("#dictionarySearch")) $("#dictionarySearch").oninput=renderDictionary;
+if($("#dictionaryTypeFilter")) $("#dictionaryTypeFilter").onchange=renderDictionary;
+if($("#dictionarySort")) $("#dictionarySort").onchange=renderDictionary;
+if($("#closeDictionaryDetail")) $("#closeDictionaryDetail").onclick=()=>{$("#dictionaryDetail").hidden=true;state.dictionarySelected=null};
+if($("#dictionaryAddStockBtn")) $("#dictionaryAddStockBtn").onclick=addDictionarySelectedToStock;
+if($("#addKanjiStockBtn")) $("#addKanjiStockBtn").onclick=addKanjiStock;
 $("#kanjiStockInput").addEventListener("keydown",e=>{if(e.key==="Enter")addKanjiStock()});
 $("#addBtn").onclick=addCandidate;$("#searchInput").oninput=render;$("#sortSelect").onchange=render;$("#statusFilter").onchange=render;
 $("#clearCompareBtn").onclick=()=>{state.compare=[];storage.set("babyma_compare",[]);render()};
