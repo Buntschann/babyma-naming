@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.3">
+  <link rel="stylesheet" href="./style.css?v=5.3.1">
 </head>
 <body>
 
@@ -200,11 +200,18 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.3</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.3.1</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.3</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.3.1</strong><span>最新</span></div>
+        <ul>
+          <li>v5.3以前の漢字ストックメモを「なえちゃメモ」として復元</li>
+          <li>旧memo列が残っている場合も自動表示する互換処理を追加</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.3</strong></div>
         <ul>
           <li>漢字ストックのメモを2人別・再編集可能に</li>
           <li>常用漢字／人名用漢字／要確認をストックにも表示</li>
@@ -451,8 +458,8 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./config.js?v=5.3"></script>
-<script src="./app.js?v=5.3"></script>
+<script src="./config.js?v=5.3.1"></script>
+<script src="./app.js?v=5.3.1"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
