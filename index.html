@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.3.1">
+  <link rel="stylesheet" href="./style.css?v=5.4">
 </head>
 <body>
 
@@ -46,7 +46,7 @@
   </header>
 
   <main class="wrap">
-    <section class="hero card">
+    <section class="hero card" data-app-tab="names">
       <div>
         <div class="label">苗字と並べて確認</div>
         <div id="previewName" class="preview-name">文谷　——</div>
@@ -55,7 +55,7 @@
       <span id="syncBadge" class="badge">共有同期</span>
     </section>
 
-    <section class="card">
+    <section class="card" data-app-tab="names">
       <h2>候補を追加</h2>
       <div class="form-grid">
         <label>名前<input id="nameInput" maxlength="8" placeholder="例：凪"></label>
@@ -85,22 +85,7 @@
     </section>
 
 
-    <section class="card kanji-stock-section">
-      <div class="section-head">
-        <div><h2>漢字ストック</h2><div class="hint">まだ名前候補ではないけど、いいと思った漢字を一旦キープしま。</div></div>
-        <span id="kanjiStockCount" class="badge">0字</span>
-      </div>
-      <div class="kanji-stock-add">
-        <label>漢字<input id="kanjiStockInput" maxlength="1" placeholder="例：凪"></label>
-        <label class="grow">メモ<input id="kanjiStockMemo" maxlength="100" placeholder="例：響きが好き、意味がいい"></label>
-        <button id="addKanjiStockBtn" class="secondary stock-add-btn">キープ</button>
-      </div>
-      <div id="kanjiStockList" class="kanji-stock-list"></div>
-      <div id="kanjiStockEmpty" class="stock-empty">まだストックがなま。</div>
-    </section>
-
-
-    <section class="card kanji-stock-section">
+    <section class="card kanji-stock-section" data-app-tab="stock">
       <div class="section-head">
         <div><h2>漢字ストック</h2><div class="hint">まだ名前候補ではないけど、いいと思った漢字を一旦キープしま。</div></div>
         <span id="kanjiStockCount" class="badge">0字</span>
@@ -114,7 +99,7 @@
       <div id="kanjiStockEmpty" class="stock-empty">まだストックがなま。</div>
     </section>
 
-    <section class="card kanji-dictionary-section">
+    <section class="card kanji-dictionary-section" data-app-tab="dictionary">
       <div class="section-head">
         <div><h2>使える漢字辞典</h2><div class="hint">常用漢字・人名用漢字から探して、そのままストックできま。</div></div>
         <span id="dictionaryCount" class="badge">読込中</span>
@@ -122,9 +107,20 @@
       <div class="dictionary-controls">
         <label class="grow">漢字検索<input id="dictionarySearch" maxlength="1" placeholder="漢字1文字"></label>
         <label>種類<select id="dictionaryTypeFilter"><option value="all">すべて</option><option value="joyo">常用漢字</option><option value="jinmeiyo">人名用漢字</option></select></label>
-        <label>並び順<select id="dictionarySort"><option value="type">種類順</option><option value="char">文字順</option></select></label>
+        <label>並び順
+          <select id="dictionarySort">
+            <option value="type">種類順</option>
+            <option value="stroke_asc">画数（少→多）</option>
+            <option value="stroke_desc">画数（多→少）</option>
+            <option value="radical">部首順</option>
+            <option value="grade">学年順</option>
+            <option value="frequency">使用頻度順</option>
+            <option value="jlpt">JLPT順</option>
+            <option value="char">文字順</option>
+          </select>
+        </label>
       </div>
-      <div id="dictionaryStatus" class="field-status">一覧を読み込み中…</div>
+      <div id="dictionaryStatus" class="field-status">一覧を読み込み中…</div><div id="dictionarySortNote" class="field-status"></div>
       <div id="dictionaryGrid" class="dictionary-grid"></div>
       <div id="dictionaryDetail" class="dictionary-detail" hidden>
         <div class="dictionary-detail-head"><div id="dictionaryDetailChar" class="dictionary-detail-char"></div><button id="closeDictionaryDetail" class="mini-btn">閉じる</button></div>
@@ -134,7 +130,7 @@
       </div>
     </section>
 
-    <section class="controls card">
+    <section class="controls card" data-app-tab="names">
       <div class="control-row">
         <label class="grow">検索<input id="searchInput" placeholder="名前・読み・メモ・タグ・提案者・意味"></label>
         <label>状態
@@ -163,7 +159,7 @@
       <div id="stats" class="stats"></div>
     </section>
 
-    <section class="card compare-box">
+    <section class="card compare-box" data-app-tab="names">
       <div class="compare-head">
         <div><h2>比較</h2><div class="hint">候補カードの「比較に追加」で最大4件まで並べられま。</div></div>
         <button id="clearCompareBtn" class="secondary">クリア</button>
@@ -171,7 +167,7 @@
       <div id="compareGrid" class="compare-grid"></div>
     </section>
 
-    <section>
+    <section data-app-tab="names">
       <div id="candidateList" class="candidate-list"></div>
       <div id="emptyState" class="empty card">
         <div class="empty-emoji">👶</div>
@@ -179,7 +175,7 @@
       </div>
     </section>
 
-    <section class="card history-card">
+    <section class="card history-card" data-app-tab="names">
       <details>
         <summary>履歴を見る <span id="historyCount"></span></summary>
         <p class="hint">自分が作った履歴だけ削除できま。</p>
@@ -187,6 +183,11 @@
       </details>
     </section>
   </main>
+  <nav class="bottom-tabbar" aria-label="主な機能">
+    <button class="bottom-tab active" data-tab="names"><span class="tab-icon">👶</span><span>名前候補</span></button>
+    <button class="bottom-tab" data-tab="stock"><span class="tab-icon">★</span><span>漢字ストック</span></button>
+    <button class="bottom-tab" data-tab="dictionary"><span class="tab-icon">字</span><span>漢字辞典</span></button>
+  </nav>
 </div>
 
 
@@ -200,11 +201,20 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.3.1</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.4</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.3.1</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.4</strong><span>最新</span></div>
+        <ul>
+          <li>「名前候補・漢字ストック・漢字辞典」を下部タブで3画面に整理</li>
+          <li>漢字辞典に画数順・部首順・学年順・使用頻度順・JLPT順を追加</li>
+          <li>辞典の詳細情報を強化</li>
+          <li>重複していた漢字ストック表示を整理</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.3.1</strong></div>
         <ul>
           <li>v5.3以前の漢字ストックメモを「なえちゃメモ」として復元</li>
           <li>旧memo列が残っている場合も自動表示する互換処理を追加</li>
@@ -458,8 +468,9 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./config.js?v=5.3.1"></script>
-<script src="./app.js?v=5.3.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="./config.js?v=5.4"></script>
+<script src="./app.js?v=5.4"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>

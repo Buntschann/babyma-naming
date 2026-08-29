@@ -3,9 +3,9 @@ const $=s=>document.querySelector(s);
 const storage={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
 const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
-const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null};
+const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names"};
 const ROOM="BABYMA";
-const APP_VERSION="5.3.1";
+const APP_VERSION="5.4";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -225,6 +225,68 @@ async function silentVersionCheck(){
   }
  }catch(e){}
 }
+
+function switchAppTab(tab){
+ state.currentTab=tab;
+ document.querySelectorAll("[data-app-tab]").forEach(el=>el.classList.toggle("tab-view-hidden",el.dataset.appTab!==tab));
+ document.querySelectorAll(".bottom-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+ storage.set("babyma_current_tab",tab);
+ window.scrollTo({top:0,behavior:"auto"});
+ if(tab==="dictionary")renderDictionary();
+ if(tab==="stock")renderKanjiStocks();
+}
+
+async function getDictionaryData(){
+ if(state.dictionaryData)return state.dictionaryData;
+ const cached=storage.get("babyma_dictionary_enriched_v1",null);
+ if(cached?.joyo?.length && cached?.jinmeiyo?.length){
+   state.dictionaryData=cached;return cached;
+ }
+ try{
+   const [joyo,jinmeiyo]=await Promise.all([
+     fetch("https://kanjiapi.dev/v1/kanji/joyo-enriched",{cache:"force-cache"}).then(r=>{if(!r.ok)throw new Error("joyo");return r.json()}),
+     fetch("https://kanjiapi.dev/v1/kanji/jinmeiyo-enriched",{cache:"force-cache"}).then(r=>{if(!r.ok)throw new Error("jinmeiyo");return r.json()})
+   ]);
+   const data={joyo,jinmeiyo};
+   try{storage.set("babyma_dictionary_enriched_v1",data)}catch(e){}
+   state.dictionaryData=data;return data;
+ }catch(e){
+   console.warn("enriched dictionary unavailable",e);
+   return null;
+ }
+}
+
+async function ensureRadicalMap(){
+ if(state.radicalMap)return state.radicalMap;
+ const cached=storage.get("babyma_radical_map_v1",null);
+ if(cached){state.radicalMap=cached;return cached}
+ if(!window.JSZip)throw new Error("JSZip unavailable");
+ $("#dictionarySortNote").textContent="部首データを初回取得中…（少し時間がかかることがありま）";
+ const r=await fetch("https://www.unicode.org/Public/UCD/latest/ucd/Unihan.zip",{cache:"force-cache"});
+ if(!r.ok)throw new Error("Unihan download failed");
+ const buf=await r.arrayBuffer(),zip=await JSZip.loadAsync(buf);
+ const fileName=Object.keys(zip.files).find(n=>n.endsWith("Unihan_IRGSources.txt"));
+ if(!fileName)throw new Error("Unihan data missing");
+ const text=await zip.file(fileName).async("text"),map={};
+ for(const line of text.split(/\r?\n/)){
+   if(!line||line[0]==="#"||!line.includes("\tkRSUnicode\t"))continue;
+   const parts=line.split("\t");if(parts.length<3)continue;
+   const cp=parseInt(parts[0].slice(2),16),ch=String.fromCodePoint(cp);
+   const first=parts[2].split(" ")[0];
+   const m=first.match(/^(\d+)('?{0,2})\.(-?\d+)/);
+   if(m)map[ch]={radical:Number(m[1]),variant:m[2]||"",residual:Number(m[3])};
+ }
+ state.radicalMap=map;
+ try{storage.set("babyma_radical_map_v1",map)}catch(e){}
+ return map;
+}
+
+function gradeLabel(g){
+ if(g>=1&&g<=6)return `小${g}`;
+ if(g===8)return "中学";
+ if(g===9)return "人名用";
+ return "—";
+}
 function configReady(){
  return cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY &&
  !cfg.SUPABASE_URL.includes("ここに") && !cfg.SUPABASE_PUBLISHABLE_KEY.includes("ここに");
@@ -263,6 +325,8 @@ async function enter(user){
  showApp();
  if(!state.actor) $("#settingsDialog").showModal();
  await refresh();
+ state.currentTab=storage.get("babyma_current_tab","names");
+ switchAppTab(state.currentTab);
  silentVersionCheck();
 }
 async function logout(){
@@ -385,14 +449,94 @@ function kanjiKinds(ch,sets){return sets?{joyo:sets.joyo.has(ch),jinmeiyo:sets.j
 function kindBadgesHtml(ch,sets){const k=kanjiKinds(ch,sets);let h="";if(k.joyo)h+='<span class="kind-badge kind-joyo">常用漢字</span>';if(k.jinmeiyo)h+='<span class="kind-badge kind-jinmeiyo">人名用漢字</span>';if(!k.joyo&&!k.jinmeiyo)h+='<span class="kind-badge kind-check">要確認</span>';return h}
 async function saveStockMemo(x,role,input){const field=role==="mako"?"memo_mako":"memo_nae";const {error}=await sb.from("kanji_stocks").update({[field]:input.value.trim()}).eq("id",x.id);if(error){alert(error.message);return}await refresh()}
 async function renderDictionary(){
- const grid=$("#dictionaryGrid"),status=$("#dictionaryStatus"),sets=await getLegalSets();if(!sets){status.textContent="漢字一覧を取得できなま";return}
- let rows=[...[...sets.joyo].map(ch=>({ch,type:"joyo"})),...[...sets.jinmeiyo].filter(ch=>!sets.joyo.has(ch)).map(ch=>({ch,type:"jinmeiyo"}))];
- const q=$("#dictionarySearch").value.trim(),type=$("#dictionaryTypeFilter").value,sort=$("#dictionarySort").value;if(q)rows=rows.filter(x=>x.ch===q);if(type!=="all")rows=rows.filter(x=>x.type===type);
- if(sort==="char")rows.sort((a,b)=>a.ch.localeCompare(b.ch,"ja"));else rows.sort((a,b)=>a.type===b.type?a.ch.localeCompare(b.ch,"ja"):(a.type==="joyo"?-1:1));
- $("#dictionaryCount").textContent=`${rows.length}字`;status.textContent=`${rows.length}字を表示`;grid.innerHTML="";
- const frag=document.createDocumentFragment();rows.forEach(x=>{const b=document.createElement("button");b.type="button";b.className=`dictionary-char ${x.type}`;b.textContent=x.ch;b.onclick=()=>openDictionaryDetail(x.ch);frag.appendChild(b)});grid.appendChild(frag)
+ const grid=$("#dictionaryGrid"),status=$("#dictionaryStatus"),note=$("#dictionarySortNote");
+ if(!grid)return;
+ status.textContent="辞典データを読み込み中…";note.textContent="";
+ const sets=await getLegalSets();
+ const enriched=await getDictionaryData();
+ if(!sets){status.textContent="漢字一覧を取得できなま";return}
+
+ let rows=[];
+ if(enriched){
+   rows=[
+    ...enriched.joyo.map(d=>({...d,type:"joyo"})),
+    ...enriched.jinmeiyo.filter(d=>!sets.joyo.has(d.kanji)).map(d=>({...d,type:"jinmeiyo"}))
+   ];
+ }else{
+   rows=[
+    ...[...sets.joyo].map(ch=>({kanji:ch,type:"joyo"})),
+    ...[...sets.jinmeiyo].filter(ch=>!sets.joyo.has(ch)).map(ch=>({kanji:ch,type:"jinmeiyo"}))
+   ];
+ }
+
+ const q=$("#dictionarySearch").value.trim(),type=$("#dictionaryTypeFilter").value,sort=$("#dictionarySort").value;
+ if(q)rows=rows.filter(x=>x.kanji===q);
+ if(type!=="all")rows=rows.filter(x=>x.type===type);
+
+ if(sort==="radical"){
+   try{
+     const rm=await ensureRadicalMap();
+     rows.sort((a,b)=>{
+       const ra=rm[a.kanji]||{radical:999,residual:999},rb=rm[b.kanji]||{radical:999,residual:999};
+       return ra.radical-rb.radical||ra.residual-rb.residual||a.kanji.localeCompare(b.kanji,"ja");
+     });
+     note.textContent="部首番号 → 部首以外の画数 → 文字の順で表示しま。";
+   }catch(e){
+     console.warn(e);note.textContent="部首データを取得できなま。文字順で表示しま。";
+     rows.sort((a,b)=>a.kanji.localeCompare(b.kanji,"ja"));
+   }
+ }else if(sort==="stroke_asc"){
+   rows.sort((a,b)=>(a.stroke_count??999)-(b.stroke_count??999)||a.kanji.localeCompare(b.kanji,"ja"));
+   note.textContent="総画数の少ない順ま。";
+ }else if(sort==="stroke_desc"){
+   rows.sort((a,b)=>(b.stroke_count??-1)-(a.stroke_count??-1)||a.kanji.localeCompare(b.kanji,"ja"));
+   note.textContent="総画数の多い順ま。";
+ }else if(sort==="grade"){
+   rows.sort((a,b)=>(a.grade??99)-(b.grade??99)||(a.stroke_count??99)-(b.stroke_count??99));
+   note.textContent="小学校1〜6年 → 中学校 → 人名用漢字の順ま。";
+ }else if(sort==="frequency"){
+   rows.sort((a,b)=>(a.freq_mainichi_shinbun??999999)-(b.freq_mainichi_shinbun??999999));
+   note.textContent="毎日新聞の漢字出現頻度データをもとに、よく使われる順ま。";
+ }else if(sort==="jlpt"){
+   rows.sort((a,b)=>(b.jlpt??-1)-(a.jlpt??-1)||(a.stroke_count??99)-(b.stroke_count??99));
+   note.textContent="旧JLPTの易しい側から並べま（未設定字は後ろ）。";
+ }else if(sort==="char"){
+   rows.sort((a,b)=>a.kanji.localeCompare(b.kanji,"ja"));
+ }else{
+   rows.sort((a,b)=>a.type===b.type?a.kanji.localeCompare(b.kanji,"ja"):(a.type==="joyo"?-1:1));
+ }
+
+ $("#dictionaryCount").textContent=`${rows.length}字`;
+ status.textContent=`${rows.length}字を表示`;
+ grid.innerHTML="";
+ const frag=document.createDocumentFragment();
+ rows.forEach(x=>{
+   const b=document.createElement("button");b.type="button";b.className=`dictionary-char ${x.type}`;
+   let meta="";
+   if(sort.startsWith("stroke")&&x.stroke_count!=null)meta=`<span class="dictionary-char-meta">${x.stroke_count}画</span>`;
+   else if(sort==="grade")meta=`<span class="dictionary-char-meta">${gradeLabel(x.grade)}</span>`;
+   else if(sort==="radical"&&state.radicalMap?.[x.kanji])meta=`<span class="dictionary-char-meta">部${state.radicalMap[x.kanji].radical}</span>`;
+   b.innerHTML=`${esc(x.kanji)}${meta}`;b.onclick=()=>openDictionaryDetail(x.kanji);frag.appendChild(b)
+ });
+ grid.appendChild(frag);
 }
-async function openDictionaryDetail(ch){state.dictionarySelected=ch;$("#dictionaryDetail").hidden=false;$("#dictionaryDetailChar").textContent=ch;const sets=await getLegalSets();$("#dictionaryDetailType").innerHTML=kindBadgesHtml(ch,sets);const info=$("#dictionaryDetailInfo");info.textContent="読み込み中…";const d=await getKanjiDetail(ch);if(!d){info.textContent="辞書情報を取得できなま";return}info.innerHTML=`<div>画数：${d.stroke_count??"—"}画</div><div>音読み：${esc((d.on_readings||[]).join("・")||"—")}</div><div>訓読み：${esc((d.kun_readings||[]).join("・")||"—")}</div><div>名乗り：${esc((d.name_readings||[]).join("・")||"—")}</div><div>意味：${esc((d.meanings||[]).join(", ")||"—")}</div>`}
+async function openDictionaryDetail(ch){
+ state.dictionarySelected=ch;$("#dictionaryDetail").hidden=false;$("#dictionaryDetailChar").textContent=ch;
+ const sets=await getLegalSets();$("#dictionaryDetailType").innerHTML=kindBadgesHtml(ch,sets);
+ const info=$("#dictionaryDetailInfo");info.textContent="読み込み中…";
+ const d=await getKanjiDetail(ch);if(!d){info.textContent="辞書情報を取得できなま";return}
+ let radicalText="—";
+ if(state.radicalMap?.[ch])radicalText=`部首番号 ${state.radicalMap[ch].radical}・残り${state.radicalMap[ch].residual}画`;
+ info.innerHTML=`<div>画数：${d.stroke_count??"—"}画</div>
+ <div>部首：${esc(radicalText)}</div>
+ <div>学年区分：${esc(gradeLabel(d.grade))}</div>
+ <div>音読み：${esc((d.on_readings||[]).join("・")||"—")}</div>
+ <div>訓読み：${esc((d.kun_readings||[]).join("・")||"—")}</div>
+ <div>名乗り：${esc((d.name_readings||[]).join("・")||"—")}</div>
+ <div>JLPT：${d.jlpt?`N相当データ ${esc(String(d.jlpt))}`:"—"}</div>
+ <div>新聞頻度順位：${d.freq_mainichi_shinbun??"—"}</div>
+ <div>意味：${esc((d.meanings||[]).join(", ")||"—")}</div>`;
+}
 async function addDictionarySelectedToStock(){const ch=state.dictionarySelected;if(!ch)return;if(state.kanjiStocks.some(x=>x.kanji===ch)){showToast(`${ch} はもうストック済みま！`);return}const d=await getKanjiDetail(ch);const row={room_code:ROOM,kanji:ch,stroke_count:d?.stroke_count??null,on_readings:d?.on_readings||[],kun_readings:d?.kun_readings||[],name_readings:d?.name_readings||[],meanings:d?.meanings||[],memo_mako:"",memo_nae:"",actor:state.actor||state.user?.email||"家族",owner_user_id:state.user.id};const {error}=await sb.from("kanji_stocks").insert(row);if(error){alert(error.message);return}showToast(`${ch} をストックしまし！`);await refresh()}
 async function addKanjiStock(){
  const ch=$("#kanjiStockInput").value.trim(),memo=$("#kanjiStockMemo").value.trim();
@@ -500,6 +644,7 @@ $("#editNewTagInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preve
 $("#saveEditBtn").onclick=saveEdit;
 $("#closeEditBtn").onclick=()=>{state.editing=null;$("#editDialog").close()};
 
+document.querySelectorAll(".bottom-tab").forEach(b=>b.onclick=()=>switchAppTab(b.dataset.tab));
 $("#dictionarySearch").oninput=renderDictionary;
 $("#dictionaryTypeFilter").onchange=renderDictionary;
 $("#dictionarySort").onchange=renderDictionary;

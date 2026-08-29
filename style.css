@@ -134,3 +134,25 @@ dialog{border:0;border-radius:20px;padding:0;width:min(92vw,560px)}dialog::backd
 .dictionary-char{border:1px solid var(--line);background:#fff;border-radius:10px;min-height:48px;font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:23px;font-weight:700;position:relative}.dictionary-char.joyo::after,.dictionary-char.jinmeiyo::after{position:absolute;right:3px;bottom:2px;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;font-size:7px;font-weight:700;border-radius:4px;padding:1px 3px}.dictionary-char.joyo::after{content:"常";background:#e4eee1;color:#486243}.dictionary-char.jinmeiyo::after{content:"人";background:#e8e4f0;color:#5c5272}
 .dictionary-detail{margin-top:14px;border:1px solid var(--line);border-radius:16px;background:#fff;padding:14px}.dictionary-detail-head{display:flex;justify-content:space-between;align-items:flex-start}.dictionary-detail-char{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:54px;font-weight:700;line-height:1}.dictionary-detail-info{margin-top:10px;font-size:12px;line-height:1.7}.dictionary-detail-info div{border-top:1px solid var(--line);padding:5px 0}
 @media(max-width:560px){.dictionary-controls{flex-direction:column;align-items:stretch}.stock-memo-grid{grid-template-columns:1fr}}
+
+
+/* v5.4: 3-screen tab navigation */
+body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+.tab-view-hidden{display:none!important}
+.bottom-tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:900;
+  display:grid;grid-template-columns:repeat(3,1fr);
+  padding:6px 8px calc(6px + env(safe-area-inset-bottom));
+  background:rgba(255,253,249,.94);backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);box-shadow:0 -6px 24px rgba(60,47,37,.06)
+}
+.bottom-tab{
+  border:0;background:transparent;color:var(--sub);border-radius:12px;
+  min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;font-size:10px;font-weight:700
+}
+.bottom-tab.active{background:var(--accent2);color:#7b4937}
+.tab-icon{font-size:18px;line-height:1}
+.kanji-dictionary-section,.kanji-stock-section{min-height:calc(100dvh - 170px)}
+.dictionary-sort-loading{display:inline-block;margin-left:5px}
+.dictionary-char-meta{display:block;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;font-size:7px;color:var(--sub);font-weight:500;margin-top:1px}
