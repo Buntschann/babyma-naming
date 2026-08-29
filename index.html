@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.2.1">
+  <link rel="stylesheet" href="./style.css?v=5.3">
 </head>
 <body>
 
@@ -99,6 +99,41 @@
       <div id="kanjiStockEmpty" class="stock-empty">まだストックがなま。</div>
     </section>
 
+
+    <section class="card kanji-stock-section">
+      <div class="section-head">
+        <div><h2>漢字ストック</h2><div class="hint">まだ名前候補ではないけど、いいと思った漢字を一旦キープしま。</div></div>
+        <span id="kanjiStockCount" class="badge">0字</span>
+      </div>
+      <div class="kanji-stock-add">
+        <label>漢字<input id="kanjiStockInput" maxlength="1" placeholder="例：凪"></label>
+        <label class="grow">自分のメモ<input id="kanjiStockMemo" maxlength="120" placeholder="例：響きが好き、意味がいい"></label>
+        <button id="addKanjiStockBtn" class="secondary stock-add-btn">キープ</button>
+      </div>
+      <div id="kanjiStockList" class="kanji-stock-list"></div>
+      <div id="kanjiStockEmpty" class="stock-empty">まだストックがなま。</div>
+    </section>
+
+    <section class="card kanji-dictionary-section">
+      <div class="section-head">
+        <div><h2>使える漢字辞典</h2><div class="hint">常用漢字・人名用漢字から探して、そのままストックできま。</div></div>
+        <span id="dictionaryCount" class="badge">読込中</span>
+      </div>
+      <div class="dictionary-controls">
+        <label class="grow">漢字検索<input id="dictionarySearch" maxlength="1" placeholder="漢字1文字"></label>
+        <label>種類<select id="dictionaryTypeFilter"><option value="all">すべて</option><option value="joyo">常用漢字</option><option value="jinmeiyo">人名用漢字</option></select></label>
+        <label>並び順<select id="dictionarySort"><option value="type">種類順</option><option value="char">文字順</option></select></label>
+      </div>
+      <div id="dictionaryStatus" class="field-status">一覧を読み込み中…</div>
+      <div id="dictionaryGrid" class="dictionary-grid"></div>
+      <div id="dictionaryDetail" class="dictionary-detail" hidden>
+        <div class="dictionary-detail-head"><div id="dictionaryDetailChar" class="dictionary-detail-char"></div><button id="closeDictionaryDetail" class="mini-btn">閉じる</button></div>
+        <div id="dictionaryDetailType" class="dictionary-type-badges"></div>
+        <div id="dictionaryDetailInfo" class="dictionary-detail-info"></div>
+        <button id="dictionaryAddStockBtn" class="primary">この漢字をストック</button>
+      </div>
+    </section>
+
     <section class="controls card">
       <div class="control-row">
         <label class="grow">検索<input id="searchInput" placeholder="名前・読み・メモ・タグ・提案者・意味"></label>
@@ -165,11 +200,21 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.2.1</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.3</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.2.1</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.3</strong><span>最新</span></div>
+        <ul>
+          <li>漢字ストックのメモを2人別・再編集可能に</li>
+          <li>常用漢字／人名用漢字／要確認をストックにも表示</li>
+          <li>要確認漢字でも候補・ストック登録可能</li>
+          <li>「使える漢字辞典」を追加</li>
+          <li>辞典から直接ストック可能</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.2.1</strong></div>
         <ul>
           <li>ログインボタンが反応しなくなる不具合を修正</li>
           <li>更新ボタンがHTMLにない場合でもJavaScriptが停止しないよう改善</li>
@@ -406,8 +451,8 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./config.js?v=5.2.1"></script>
-<script src="./app.js?v=5.2.1"></script>
+<script src="./config.js?v=5.3"></script>
+<script src="./app.js?v=5.3"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
