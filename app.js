@@ -1,671 +1,664 @@
-
-const $=s=>document.querySelector(s);
-const storage={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
-const cfg=window.BABYMA_CONFIG||{};
-let sb=null;
-const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names"};
-const ROOM="BABYMA";
-const APP_VERSION="5.4.2";
-const now=()=>new Date().toISOString();
-const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
-const count=s=>[...(s||"")].length;
-const strokeTotal=s=>{const n=(s||"").match(/\d+/g);return n?n.map(Number).reduce((a,b)=>a+b,0):null};
-const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
-const statusName=s=>({candidate:"候補",hold:"保留",rejected:"却下"}[s]||"候補");
-const isKanji=ch=>/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u.test(ch);
-const debounce=(fn,ms=500)=>{let t;return(...args)=>{clearTimeout(t);t=setTimeout(()=>fn(...args),ms)}};
-
-const HIRA_STROKES={"あ":3,"い":2,"う":2,"え":3,"お":4,"か":3,"き":4,"く":1,"け":3,"こ":2,"さ":3,"し":1,"す":3,"せ":3,"そ":4,"た":4,"ち":3,"つ":1,"て":2,"と":2,"な":5,"に":3,"ぬ":3,"ね":4,"の":1,"は":4,"ひ":2,"ふ":4,"へ":1,"ほ":5,"ま":4,"み":3,"む":4,"め":2,"も":3,"や":3,"ゆ":3,"よ":3,"ら":3,"り":2,"る":3,"れ":3,"ろ":2,"わ":3,"ゐ":3,"ゑ":5,"を":4,"ん":2};
-const KATA_STROKES={"ア":2,"イ":2,"ウ":3,"エ":3,"オ":3,"カ":2,"キ":3,"ク":2,"ケ":3,"コ":2,"サ":3,"シ":3,"ス":2,"セ":2,"ソ":2,"タ":3,"チ":3,"ツ":3,"テ":3,"ト":2,"ナ":2,"ニ":2,"ヌ":2,"ネ":4,"ノ":1,"ハ":2,"ヒ":2,"フ":1,"ヘ":1,"ホ":4,"マ":2,"ミ":3,"ム":2,"メ":2,"モ":3,"ヤ":2,"ユ":2,"ヨ":3,"ラ":2,"リ":2,"ル":2,"レ":1,"ロ":3,"ワ":2,"ヰ":4,"ヱ":3,"ヲ":3,"ン":2};
-const SMALL_KANA={"ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お","ゃ":"や","ゅ":"ゆ","ょ":"よ","っ":"つ","ゎ":"わ","ァ":"ア","ィ":"イ","ゥ":"ウ","ェ":"エ","ォ":"オ","ャ":"ヤ","ュ":"ユ","ョ":"ヨ","ッ":"ツ","ヮ":"ワ"};
-const VOICED={"が":"か","ぎ":"き","ぐ":"く","げ":"け","ご":"こ","ざ":"さ","じ":"し","ず":"す","ぜ":"せ","ぞ":"そ","だ":"た","ぢ":"ち","づ":"つ","で":"て","ど":"と","ば":"は","び":"ひ","ぶ":"ふ","べ":"へ","ぼ":"ほ","ゔ":"う","ガ":"カ","ギ":"キ","グ":"ク","ゲ":"ケ","ゴ":"コ","ザ":"サ","ジ":"シ","ズ":"ス","ゼ":"セ","ゾ":"ソ","ダ":"タ","ヂ":"チ","ヅ":"ツ","デ":"テ","ド":"ト","バ":"ハ","ビ":"ヒ","ブ":"フ","ベ":"ヘ","ボ":"ホ","ヴ":"ウ"};
-const SEMIVOICED={"ぱ":"は","ぴ":"ひ","ぷ":"ふ","ぺ":"へ","ぽ":"ほ","パ":"ハ","ピ":"ヒ","プ":"フ","ペ":"ヘ","ポ":"ホ"};
-function kanaStroke(ch){if(ch==="ー")return 1;const n=SMALL_KANA[ch]||ch;if(HIRA_STROKES[n]!=null)return HIRA_STROKES[n];if(KATA_STROKES[n]!=null)return KATA_STROKES[n];if(VOICED[ch]){const base=VOICED[ch];return (HIRA_STROKES[base]??KATA_STROKES[base])+2}if(SEMIVOICED[ch]){const base=SEMIVOICED[ch];return (HIRA_STROKES[base]??KATA_STROKES[base])+1}return null;}
-
-function parseTags(value){
- return [...new Set((value||"").split(",").map(x=>x.trim()).filter(Boolean))];
-}
-function allTags(extra=[]){
- return [...new Set([...state.candidates.flatMap(c=>c.tags||[]),...extra])].sort((a,b)=>a.localeCompare(b,"ja"));
-}
-function toggleTagInput(input,tag){
- const tags=parseTags(input.value);
- const i=tags.indexOf(tag);
- if(i>=0) tags.splice(i,1); else tags.push(tag);
- input.value=tags.join(",");
-}
-function renderTagSuggestions(container,input){
- container.innerHTML="";
- const current=parseTags(input.value);
- allTags(current).forEach(tag=>{
-   const btn=document.createElement("button");btn.type="button";btn.className="tag-suggestion"+(current.includes(tag)?" selected":"");btn.textContent=(current.includes(tag)?"✓ ":"#")+tag;
-   btn.onclick=()=>{toggleTagInput(input,tag);renderTagSuggestions(container,input)};container.appendChild(btn);
- });
-}
-function addManualTag(input,newInput,container){
- const tag=newInput.value.trim().replace(/^#/,"");if(!tag)return;const tags=parseTags(input.value);if(!tags.includes(tag))tags.push(tag);input.value=tags.join(",");newInput.value="";renderTagSuggestions(container,input);
-}
-
-async function fetchStrokeInfo(name,input,statusEl){
- const chars=[...(name||"").trim()];
- if(!chars.length){input.value="";input.dataset.total="";statusEl.textContent="名前を入力すると自動取得しま（漢字・かな対応）";return null}
- statusEl.textContent="画数を取得中…";
- try{const rows=[];for(const ch of chars){const ks=kanaStroke(ch);if(ks!=null){rows.push({ch,strokes:ks});continue}if(isKanji(ch)){const r=await fetch("https://kanjiapi.dev/v1/kanji/"+encodeURIComponent(ch));if(!r.ok)throw new Error(ch);const j=await r.json();rows.push({ch,strokes:j.stroke_count});continue}throw new Error(ch)}
- const total=rows.reduce((n,x)=>n+x.strokes,0);input.value=rows.map(x=>x.strokes).join("+");input.dataset.total=String(total);statusEl.textContent=rows.map(x=>`${x.ch} ${x.strokes}画`).join(" ／ ")+` → 合計 ${total}画`;return total;
- }catch(e){input.value="";input.dataset.total="";statusEl.textContent=`「${e.message||"一部の文字"}」の画数を自動取得できなま。手入力を使ってま`;return null}
-}
-function enableManualStroke(input,statusEl){
- input.readOnly=false;input.focus();statusEl.textContent="手入力モードま";
-}
+const APP_VERSION="1.13.0";const VERSION_URL="./version.json";const HISTORY_URL="./update-history.json";const cfg=window.APP_CONFIG||{};const configured=cfg.SUPABASE_URL&&cfg.SUPABASE_PUBLISHABLE_KEY&&cfg.SHARED_AUTH_EMAIL&&!String(cfg.SUPABASE_URL).includes("YOUR_")&&!String(cfg.SUPABASE_PUBLISHABLE_KEY).includes("YOUR_");const $=id=>document.getElementById(id);let sb=null,library=[],scanner=null,operatorName=localStorage.getItem("ib_operator_name")||"";$('currentVersionText').textContent=`v${APP_VERSION}`;
 
 
+const SCORE_TAG_DEFAULTS={
+  voicing:["混声4部","混声3部","女声3部","女声2部","男声4部","男声3部","同声2部","同声3部","SATB","SAB","SSA","SSAA","TTBB","ユニゾン","div.","編成複数"],
+  instrumentation:["無伴奏","伴奏あり","ピアノ","オルガン","フルート","ヴァイオリン","チェロ","弦楽合奏","管弦楽","吹奏楽","打楽器","その他伴奏"],
+  language:["日本語","英語","ラテン語","ドイツ語","フランス語","イタリア語","スペイン語","ロシア語","中国語","韓国語"]
+};
+let scoreTagOptions={voicing:[],instrumentation:[],language:[]};
+let peopleMaster=[];
 
-const RATING_KEYS=["sound","surname","meaning","writing","calling"];
-const ratingOptions=()=>'<option value="">—</option>'+[1,2,3,4,5].map(n=>`<option value="${n}">${"★".repeat(n)}</option>`).join("");
-
-async function getLegalSets(){
- if(state.legalSets)return state.legalSets;
- const cached=storage.get("babyma_legal_kanji",null);
- if(cached?.joyo?.length && cached?.jinmeiyo?.length){
-   state.legalSets={joyo:new Set(cached.joyo),jinmeiyo:new Set(cached.jinmeiyo)};
-   return state.legalSets;
- }
- try{
-   const [a,b]=await Promise.all([
-     fetch("https://kanjiapi.dev/v1/kanji/joyo").then(r=>r.json()),
-     fetch("https://kanjiapi.dev/v1/kanji/jinmeiyo").then(r=>r.json())
-   ]);
-   storage.set("babyma_legal_kanji",{joyo:a,jinmeiyo:b});
-   state.legalSets={joyo:new Set(a),jinmeiyo:new Set(b)};
-   return state.legalSets;
- }catch(e){return null}
-}
-async function getKanjiDetail(ch){
- if(state.kanjiCache[ch])return state.kanjiCache[ch];
- try{
-   const r=await fetch("https://kanjiapi.dev/v1/kanji/"+encodeURIComponent(ch));
-   if(!r.ok)throw new Error(ch);
-   const j=await r.json();state.kanjiCache[ch]=j;return j;
- }catch(e){return null}
-}
-async function renderLegalAndKanjiInfo(c,root){
- const status=root.querySelector(".legal-status");
- const info=root.querySelector(".kanji-auto-info");
- const chars=[...c.name],kanji=chars.filter(isKanji);
- const sets=await getLegalSets();
-
- if(!kanji.length){
-   status.textContent="✓ 漢字なし（かな名）";status.className="legal-status ok";
-   info.innerHTML='<div class="kanji-info-item">漢字は含まれてなま。かなの画数は姓名判断用の設定で計算しま。</div>';
-   return;
- }
-
- if(sets){
-   const unusable=kanji.filter(ch=>!sets.joyo.has(ch)&&!sets.jinmeiyo.has(ch));
-   if(unusable.length){
-     status.textContent=`⚠ 使用可否を要確認：${unusable.join("・")}`;status.className="legal-status ng";
-   }else{
-     status.textContent="✓ 漢字はすべて子の名に使用可能";status.className="legal-status ok";
-   }
- }else{
-   status.textContent="使用可能文字の確認に失敗";status.className="legal-status checking";
- }
-
- const details=await Promise.all(kanji.map(getKanjiDetail));
- info.innerHTML="";
- details.forEach((d,i)=>{
-   const ch=kanji[i],box=document.createElement("div");box.className="kanji-info-item";
-   if(!d){box.textContent=`${ch}：辞書情報を取得できなま`;info.appendChild(box);return}
-   const kind=sets ? (sets.jinmeiyo.has(ch)?"人名用漢字":sets.joyo.has(ch)?"常用漢字":"要確認") : "";
-   const on=(d.on_readings||[]).join("・")||"—";
-   const kun=(d.kun_readings||[]).join("・")||"—";
-   const names=(d.name_readings||[]).join("・")||"—";
-   const meanings=(d.meanings||[]).slice(0,5).join(", ")||"—";
-   box.innerHTML=`<span class="kanji-char">${esc(ch)}</span>${kind?`<span class="kanji-type">${esc(kind)}</span>`:""}
-   <div>画数：${d.stroke_count??"—"}画</div>
-   <div>音読み：${esc(on)}</div><div>訓読み：${esc(kun)}</div>
-   <div>名乗り：${esc(names)}</div><div>辞書意味（英語）：${esc(meanings)}</div>`;
-   info.appendChild(box);
- });
-}
-function renderCallPreview(c,root){
- const box=root.querySelector(".call-chips");box.innerHTML="";
- [`${c.reading}くん`,`${c.reading}ちゃん`,`${c.reading}さん`,`文谷${c.name}です`].forEach(t=>{
-   const x=document.createElement("span");x.className="call-chip";x.textContent=t;box.appendChild(x);
- });
-}
-function candidateHistory(c){
- return state.history.filter(h=>h.candidate_id===c.id || (!h.candidate_id && h.candidate_name===c.name && h.candidate_reading===c.reading));
-}
-function renderCandidateHistory(c,root){
- const box=root.querySelector(".candidate-history"),rows=candidateHistory(c);box.innerHTML="";
- if(!rows.length){box.innerHTML='<div class="hint">この候補の履歴はまだなま。</div>';return}
- rows.forEach(h=>{
-   const x=document.createElement("div");x.className="candidate-history-item";
-   x.innerHTML=`<strong>${esc(h.action)}</strong>${h.detail?`　${esc(h.detail)}`:""}<div class="candidate-history-meta">${esc(fmt(h.created_at))} ・ ${esc(h.actor||"")}</div>`;
-   box.appendChild(x);
- });
-}
-function ratingsFor(c,role){return role==="mako"?(c.ratings_mako||{}):(c.ratings_nae||{})}
-function renderRatings(c,root){
- const mako=ratingsFor(c,"mako"),nae=ratingsFor(c,"nae");
- root.querySelectorAll(".rating-row").forEach(row=>{
-   const key=row.dataset.key,sm=row.querySelector(".rating-mako"),sn=row.querySelector(".rating-nae");
-   sm.innerHTML=ratingOptions();sn.innerHTML=ratingOptions();
-   sm.value=mako[key]??"";sn.value=nae[key]??"";
-   sm.disabled=state.role!=="mako";sn.disabled=state.role!=="nae";
-   sm.onchange=()=>saveRating(c,"mako",key,sm.value);
-   sn.onchange=()=>saveRating(c,"nae",key,sn.value);
- });
-}
-async function saveRating(c,role,key,value){
- if(state.role!==role)return;
- const field=role==="mako"?"ratings_mako":"ratings_nae";
- const obj={...(c[field]||{})};
- if(value==="")delete obj[key];else obj[key]=Number(value);
- const {error}=await sb.from("name_candidates").update({[field]:obj}).eq("id",c.id);
- if(error){alert(error.message);return}
- await history("5段階評価",c,`${role==="mako"?"まこしゃ":"なえちゃ"}：${key}=${value||"未評価"}`);
- await refresh();
+function normalizePersonKey(name){
+  return String(name||"")
+    .normalize("NFKC")
+    .replace(/[\s　・･,，、]/g,"")
+    .toLowerCase();
 }
 
+async function loadPeopleMaster(){
+  try{
+    const {data,error}=await sb.from('people_master').select('*').order('name',{ascending:true});
+    if(error){console.warn('people_master load failed',error);return}
+    peopleMaster=data||[];
+  }catch(err){console.warn('people_master load failed',err)}
+}
 
-let toastTimer=null;
-function showToast(message,ms=2200){
- const t=$("#appToast");if(!t)return;
- t.textContent=message;t.hidden=false;clearTimeout(toastTimer);
- toastTimer=setTimeout(()=>{t.hidden=true},ms);
+function findPersonMaster(name,role){
+  const key=normalizePersonKey(name);
+  if(!key)return null;
+  return peopleMaster.find(p=>{
+    if(role && p.role!==role)return false;
+    if(normalizePersonKey(p.name)===key)return true;
+    return (p.aliases||[]).some(a=>normalizePersonKey(a)===key);
+  })||null;
 }
-async function fetchLatestVersion(){
- const url=new URL("./version.json",location.href);
- url.searchParams.set("_",Date.now().toString());
- const r=await fetch(url.toString(),{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
- if(!r.ok)throw new Error("version check failed");
- return await r.json();
-}
-async function clearAppCaches(){
- try{
-  if("caches" in window){
-   const keys=await caches.keys();
-   await Promise.all(keys.map(k=>caches.delete(k)));
+
+function autoFillPersonKana(nameId,kanaId,role){
+  const name=$(nameId)?.value?.trim()||'';
+  if(!name)return false;
+  const hit=findPersonMaster(name,role);
+  if(hit?.name_kana && !$(kanaId).value.trim()){
+    $(kanaId).value=hit.name_kana;
+    return true;
   }
- }catch(e){console.warn(e)}
+  return false;
 }
-function reloadWithVersion(version){
- const url=new URL(location.href);
- url.searchParams.set("v",version);
- url.searchParams.set("_",Date.now().toString());
- location.replace(url.toString());
-}
-async function updateApp(forceReload=false){
- const btn=$("#refreshAppBtn");
- if(btn){btn.classList.add("updating");btn.textContent="↻ 確認中…"}
- try{
-  const latest=await fetchLatestVersion();
-  if(forceReload||latest.version!==APP_VERSION){
-   showToast(`v${latest.version} に更新しま！`,1200);
-   await clearAppCaches();
-   setTimeout(()=>reloadWithVersion(latest.version),350);
-   return;
+
+async function upsertPersonMaster(name,kana,role){
+  name=String(name||'').trim();
+  kana=String(kana||'').trim();
+  if(!name)return;
+
+  const existing=findPersonMaster(name,role);
+  if(existing){
+    const patch={updated_at:new Date().toISOString()};
+    if(kana && !existing.name_kana)patch.name_kana=kana;
+    if(Object.keys(patch).length>1){
+      const {error}=await sb.from('people_master').update(patch).eq('id',existing.id);
+      if(!error)Object.assign(existing,patch);
+    }
+    return;
   }
-  showToast(`最新版 v${APP_VERSION} ま！`);
-  if(state.user)await refresh();
- }catch(e){
-  console.error(e);showToast("更新確認できなま。通信状態を確認してま",3000);
- }finally{
-  if(btn){btn.classList.remove("updating");btn.textContent="↻ 更新"}
- }
+
+  const {data,error}=await sb.from('people_master')
+    .insert({name,name_kana:kana||null,role,aliases:[]})
+    .select('*').single();
+  if(!error && data)peopleMaster.push(data);
 }
-async function silentVersionCheck(){
- try{
-  const latest=await fetchLatestVersion();
-  if(latest.version!==APP_VERSION){
-   const btn=$("#refreshAppBtn");
-   if(btn)btn.textContent=`↻ v${latest.version}あり`;
+
+async function autoFillScorePersonKana(){
+  let changed=false;
+  changed=autoFillPersonKana('fScoreComposer','fComposerKana','composer')||changed;
+  changed=autoFillPersonKana('fLyricist','fLyricistKana','lyricist')||changed;
+  if(changed)showToast('人物マスターから読みを補完しました');
+}
+
+
+
+function uniqTags(values){
+  const out=[];const seen=new Set();
+  for(const v of values||[]){
+    const s=String(v||"").trim();
+    const k=s.toLowerCase();
+    if(s&&!seen.has(k)){seen.add(k);out.push(s)}
   }
- }catch(e){}
+  return out;
+}
+function selectedTagsFromHidden(id){
+  const el=$(id);if(!el)return [];
+  const raw=el.value||"";
+  try{
+    const v=JSON.parse(raw||"[]");
+    return Array.isArray(v)?v:[];
+  }catch{
+    return String(raw).split(/[;；\n]+/).map(x=>x.trim()).filter(Boolean);
+  }
+}
+function saveSelectedTags(id,values){
+  $(id).value=JSON.stringify(uniqTags(values));
+}
+function collectUsedScoreTags(){
+  const v=[],ins=[],lang=[];
+  for(const item of library||[]){
+    if(item.material_type!=="score" && item.media_type!=="楽譜")continue;
+    v.push(...(item.voicing_tags||[]));
+    ins.push(...(item.instrumentation_tags||[]));
+    lang.push(...(item.language_tags||[]));
+  }
+  scoreTagOptions={
+    voicing:uniqTags([...SCORE_TAG_DEFAULTS.voicing,...v]),
+    instrumentation:uniqTags([...SCORE_TAG_DEFAULTS.instrumentation,...ins]),
+    language:uniqTags([...SCORE_TAG_DEFAULTS.language,...lang])
+  };
+}
+function renderTagPicker(kind){
+  const map={
+    voicing:{picker:"voicingTagPicker",hidden:"fVoicingTags"},
+    instrumentation:{picker:"instrumentationTagPicker",hidden:"fInstrumentationTags"},
+    language:{picker:"languageTagPicker",hidden:"fLanguageTags"}
+  };
+  const cfg=map[kind],box=$(cfg.picker);
+  if(!cfg||!box||!$(cfg.hidden))return;
+  const selected=new Set(selectedTagsFromHidden(cfg.hidden).map(x=>String(x).toLowerCase()));
+  box.innerHTML="";
+  const options=uniqTags([...(scoreTagOptions[kind]||[]),...selectedTagsFromHidden(cfg.hidden)]);
+  if(!options.length){box.innerHTML='<span class="tag-empty">候補はまだありません</span>';return}
+  options.forEach(tag=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="tag-chip"+(selected.has(tag.toLowerCase())?" selected":"");b.textContent=tag;
+    b.addEventListener("click",()=>{
+      const current=selectedTagsFromHidden(cfg.hidden);
+      const exists=current.some(x=>String(x).toLowerCase()===tag.toLowerCase());
+      saveSelectedTags(cfg.hidden,exists?current.filter(x=>String(x).toLowerCase()!==tag.toLowerCase()):[...current,tag]);
+      renderTagPicker(kind);
+    });
+    box.appendChild(b);
+  });
+}
+function renderAllScoreTagPickers(){
+  collectUsedScoreTags();
+  renderTagPicker("voicing");renderTagPicker("instrumentation");renderTagPicker("language");
+}
+function addCustomScoreTag(kind,inputId){
+  const map={voicing:"fVoicingTags",instrumentation:"fInstrumentationTags",language:"fLanguageTags"};
+  const input=$(inputId);const tag=input.value.trim();if(!tag)return;
+  const current=selectedTagsFromHidden(map[kind]);
+  saveSelectedTags(map[kind],[...current,tag]);
+  input.value="";
+  collectUsedScoreTags();
+  if(!scoreTagOptions[kind].some(x=>x.toLowerCase()===tag.toLowerCase()))scoreTagOptions[kind].push(tag);
+  renderTagPicker(kind);
 }
 
-function switchAppTab(tab){
- state.currentTab=tab;
- document.querySelectorAll("[data-app-tab]").forEach(el=>el.classList.toggle("tab-view-hidden",el.dataset.appTab!==tab));
- document.querySelectorAll(".bottom-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
- storage.set("babyma_current_tab",tab);
- window.scrollTo({top:0,behavior:"auto"});
- if(tab==="dictionary")renderDictionary();
- if(tab==="stock")renderKanjiStocks();
+const PROVIDER_DEFAULTS={
+  rakuten:true,
+  musicbrainz:true,
+  discogs:true,
+  cdstub:true,
+  upcitemdb:true
+};
+let providerAvailability={};
+let providerSettings=loadProviderSettings();
+
+function loadProviderSettings(){
+  try{
+    return {
+      ...PROVIDER_DEFAULTS,
+      ...JSON.parse(localStorage.getItem("ib_provider_settings")||"{}")
+    };
+  }catch{
+    return {...PROVIDER_DEFAULTS};
+  }
+}
+function saveProviderSettings(){
+  localStorage.setItem("ib_provider_settings",JSON.stringify(providerSettings));
 }
 
-async function getDictionaryData(){
- if(state.dictionaryData)return state.dictionaryData;
- const cached=storage.get("babyma_dictionary_enriched_v1",null);
- if(cached?.joyo?.length && cached?.jinmeiyo?.length){
-   state.dictionaryData=cached;return cached;
- }
- try{
-   const [joyo,jinmeiyo]=await Promise.all([
-     fetch("https://kanjiapi.dev/v1/kanji/joyo-enriched",{cache:"force-cache"}).then(r=>{if(!r.ok)throw new Error("joyo");return r.json()}),
-     fetch("https://kanjiapi.dev/v1/kanji/jinmeiyo-enriched",{cache:"force-cache"}).then(r=>{if(!r.ok)throw new Error("jinmeiyo");return r.json()})
-   ]);
-   const data={joyo,jinmeiyo};
-   try{storage.set("babyma_dictionary_enriched_v1",data)}catch(e){}
-   state.dictionaryData=data;return data;
- }catch(e){
-   console.warn("enriched dictionary unavailable",e);
-   return null;
- }
-}
+if(!configured){$('setupNotice').classList.remove('hidden')}else{const remember=localStorage.getItem('ib_remember_session')!=='false';sb=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:remember,autoRefreshToken:true,detectSessionInUrl:false}});init()}
+async function init(){await checkForUpdate(false);const{data}=await sb.auth.getSession();if(data.session)enterAfterAuth()}
+$('gateForm').addEventListener('submit',async e=>{e.preventDefault();$('gateMessage').textContent='確認しています…';const remember=$('rememberSession').checked;localStorage.setItem('ib_remember_session',String(remember));const{error}=await sb.auth.signInWithPassword({email:cfg.SHARED_AUTH_EMAIL,password:$('sharedPassword').value});$('sharedPassword').value='';if(error){$('gateMessage').textContent='パスワードが正しくありません。';return}$('gateMessage').textContent='';enterAfterAuth()});
+function enterAfterAuth(){$('gateView').classList.add('hidden');$('settingsBtn').classList.remove('hidden');if(!operatorName){$('nameView').classList.remove('hidden');$('appView').classList.add('hidden')}else showApp()}
+$('nameForm').addEventListener('submit',e=>{e.preventDefault();setOperator($('operatorNameInput').value.trim())});$('changeOperatorBtn').addEventListener('click',promptOperator);$('changeNameInSettings').addEventListener('click',()=>{closeSettings();promptOperator()});function promptOperator(){const name=prompt('入力者名を入力してください。',operatorName);if(name!==null&&name.trim())setOperator(name.trim())}function setOperator(name){operatorName=name;localStorage.setItem('ib_operator_name',name);$('nameView').classList.add('hidden');showApp()}function showApp(){$('appView').classList.remove('hidden');$('operatorNameDisplay').textContent=operatorName;$('fOperator').value=operatorName;loadLibrary()}
+$('settingsBtn').addEventListener('click',()=>$('settingsModal').classList.remove('hidden'));$('closeSettingsBtn').addEventListener('click',closeSettings);function closeSettings(){$('settingsModal').classList.add('hidden')}$('logoutBtn').addEventListener('click',async()=>{await sb.auth.signOut();closeSettings();$('appView').classList.add('hidden');$('settingsBtn').classList.add('hidden');$('gateView').classList.remove('hidden')});
+$('manualBtn').addEventListener('click',()=>openEditor({material_type:$('registrationMaterialType').value,media_type:$('registrationMaterialType').value==='score'?'楽譜':'CD'}));$('metadataSearchBtn').addEventListener('click',openMetadataSearch);$('closeMetadataSearchBtn').addEventListener('click',closeMetadataSearch);$('clearMetadataSearchBtn').addEventListener('click',()=>{$('metadataSearchForm').reset();$('metadataSearchResults').innerHTML='';$('metadataSearchStatus').textContent=''});$('metadataSearchForm').addEventListener('submit',searchMetadata);$('refreshBtn').addEventListener('click',loadLibrary);$('refreshLibraryBtn').addEventListener('click',loadLibrary);$('searchInput').addEventListener('input',renderLibrary);$('genreFilter').addEventListener('change',renderLibrary);$('materialFilter').addEventListener('change',renderLibrary);$('reviewFilter').addEventListener('change',renderLibrary);$('cancelEditBtn').addEventListener('click',()=>$('editorCard').classList.add('hidden'));$('deleteItemBtn').addEventListener('click',deleteCurrentItem);$('lookupBtn').addEventListener('click',()=>lookupBarcode($('barcodeInput').value.trim()));$('scanBtn').addEventListener('click',startScanner);$('stopScanBtn').addEventListener('click',stopScanner);
+$('addVoicingTagBtn')?.addEventListener('click',()=>addCustomScoreTag('voicing','newVoicingTag'));
+$('addInstrumentationTagBtn')?.addEventListener('click',()=>addCustomScoreTag('instrumentation','newInstrumentationTag'));
+$('addLanguageTagBtn')?.addEventListener('click',()=>addCustomScoreTag('language','newLanguageTag'));
+$('fScoreComposer')?.addEventListener('change',()=>autoFillPersonKana('fScoreComposer','fComposerKana','composer'));
+$('fScoreComposer')?.addEventListener('blur',()=>autoFillPersonKana('fScoreComposer','fComposerKana','composer'));
+$('fLyricist')?.addEventListener('change',()=>autoFillPersonKana('fLyricist','fLyricistKana','lyricist'));
+$('fLyricist')?.addEventListener('blur',()=>autoFillPersonKana('fLyricist','fLyricistKana','lyricist'));
 
-async function ensureRadicalMap(){
- if(state.radicalMap)return state.radicalMap;
- const cached=storage.get("babyma_radical_map_v1",null);
- if(cached){state.radicalMap=cached;return cached}
- if(!window.JSZip)throw new Error("JSZip unavailable");
- $("#dictionarySortNote").textContent="部首データを初回取得中…（少し時間がかかることがありま）";
- const r=await fetch("https://www.unicode.org/Public/UCD/latest/ucd/Unihan.zip",{cache:"force-cache"});
- if(!r.ok)throw new Error("Unihan download failed");
- const buf=await r.arrayBuffer(),zip=await JSZip.loadAsync(buf);
- const fileName=Object.keys(zip.files).find(n=>n.endsWith("Unihan_IRGSources.txt"));
- if(!fileName)throw new Error("Unihan data missing");
- const text=await zip.file(fileName).async("text"),map={};
- for(const line of text.split(/\r?\n/)){
-   if(!line||line[0]==="#"||!line.includes("\tkRSUnicode\t"))continue;
-   const parts=line.split("\t");if(parts.length<3)continue;
-   const cp=parseInt(parts[0].slice(2),16),ch=String.fromCodePoint(cp);
-   const first=parts[2].split(" ")[0];
-   const m=first.match(/^(\d+)('{0,2})\.(-?\d+)/);
-   if(m)map[ch]={radical:Number(m[1]),variant:m[2]||"",residual:Number(m[3])};
- }
- state.radicalMap=map;
- try{storage.set("babyma_radical_map_v1",map)}catch(e){}
- return map;
-}
+['newVoicingTag','newInstrumentationTag','newLanguageTag'].forEach(id=>{
+  $(id)?.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      if(id==='newVoicingTag')addCustomScoreTag('voicing',id);
+      if(id==='newInstrumentationTag')addCustomScoreTag('instrumentation',id);
+      if(id==='newLanguageTag')addCustomScoreTag('language',id);
+    }
+  });
+});
 
-function gradeLabel(g){
- if(g>=1&&g<=6)return `小${g}`;
- if(g===8)return "中学";
- if(g===9)return "人名用";
- return "—";
+$('registrationMaterialType').addEventListener('change',updateRegistrationMode);
+$('msMaterialType').addEventListener('change',updateMetadataSearchMode);
+$('fMediaType')?.addEventListener('change',()=>{if($('fMediaType').value==='楽譜')setEditorMaterialType('score');});
+function updateRegistrationMode(){
+  const score=$('registrationMaterialType').value==='score';
+  $('barcodeLabelText').textContent=score?'ISBN / JAN / EANコード':'JAN / EANコード';
+  $('barcodeInput').placeholder=score?'例：9784117188076':'例：4988000000000';
 }
-function configReady(){
- return cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY &&
- !cfg.SUPABASE_URL.includes("ここに") && !cfg.SUPABASE_PUBLISHABLE_KEY.includes("ここに");
+function updateMetadataSearchMode(){
+  const score=$('msMaterialType').value==='score';
+  document.querySelectorAll('.score-search-field').forEach(x=>x.classList.toggle('hidden',!score));
+  $('msCatalogNo').placeholder=score?'例：出版社品番':'例：UCCG-45001';
 }
-function showAuth(msg=""){
- $("#authScreen").hidden=false;$("#appShell").hidden=true;$("#loginMessage").textContent=msg;
+function setEditorMaterialType(type){
+  const score=type==='score';
+  $('fMaterialType').value=score?'score':'media';
+  $('scoreFormSection').classList.toggle('hidden',!score);
+  $('mediaFormSection').classList.toggle('hidden',score);
+  $('enrichScoreBtn').classList.toggle('hidden',!score);
+  if(score)renderAllScoreTagPickers();autoFillScorePersonKana();
 }
-function showApp(){
- $("#authScreen").hidden=true;$("#appShell").hidden=false;
-}
-async function init(){
- if(!configReady()){showAuth("config.js に Project URL と Publishable key を設定してま。");return}
- sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_PUBLISHABLE_KEY);
- const {data:{session}}=await sb.auth.getSession();
- if(session){await enter(session.user)}
- else showAuth();
- sb.auth.onAuthStateChange(async(event,session)=>{
-   if(event==="SIGNED_OUT"||!session){state.user=null;showAuth()}
- });
-}
-async function login(){
- $("#loginMessage").textContent="ログイン中…";
- const email=$("#loginEmail").value.trim(),password=$("#loginPassword").value;
- if(!email||!password){$("#loginMessage").textContent="メールアドレスとパスワードを入れてま。";return}
- const {data,error}=await sb.auth.signInWithPassword({email,password});
- if(error){$("#loginMessage").textContent="ログインできなま：" + error.message;return}
- await enter(data.user);
-}
-async function enter(user){
- $("#loginMessage").textContent="";
- state.user=user;
- state.actor=storage.get("babyma_actor","");
- state.role=storage.get("babyma_role","mako");
- $("#actorInput").value=state.actor;$("#roleInput").value=state.role;
- $("#signedInAs").textContent=`ログイン中：${user.email||""}`;
- showApp();
- if(!state.actor) $("#settingsDialog").showModal();
- await refresh();
- state.currentTab=storage.get("babyma_current_tab","names");
- switchAppTab(state.currentTab);
- silentVersionCheck();
-}
-async function logout(){
- await sb.auth.signOut();
- state.candidates=[];state.history=[];state.comments=[];state.kanjiStocks=[];
- showAuth("ログアウトしまし。");
-}
-async function refresh(retry=0){
- const [a,b,c,d]=await Promise.all([
-  sb.from("name_candidates").select("*").eq("room_code",ROOM).order("created_at",{ascending:false}),
-  sb.from("name_history").select("*").eq("room_code",ROOM).order("created_at",{ascending:false}),
-  sb.from("name_comments").select("*").eq("room_code",ROOM).order("created_at",{ascending:true}),
-  sb.from("kanji_stocks").select("*").eq("room_code",ROOM).order("created_at",{ascending:false})
- ]);
- const err=a.error||b.error||c.error||d.error;
- if(err){
-   console.error(err);
-   if(retry < 3 && /JWT issued at future/i.test(err.message||"")){
-     $("#syncBadge").textContent="同期準備中…";
-     await new Promise(r=>setTimeout(r,1500));
-     return refresh(retry+1);
-   }
-   alert("共有データを読み込めなま：" + err.message);
-   $("#syncBadge").textContent="同期エラー";
-   return
- }
- $("#syncBadge").textContent="共有同期";
- state.candidates=(a.data||[]).map(x=>({...x,ratings_mako:x.ratings_mako||{},ratings_nae:x.ratings_nae||{},likes:{mako:!!x.like_mako,nae:!!x.like_nae}}));
- state.history=b.data||[];state.comments=c.data||[];state.kanjiStocks=d.data||[];
- state.compare=storage.get("babyma_compare",[]);
- render();renderKanjiStocks();renderDictionary();
- renderTagSuggestions($("#tagSuggestions"),$("#tagsInput"));
-}
-async function history(action,c,detail=""){
- const row={room_code:ROOM,actor:state.actor||state.user?.email||"家族",owner_device_id:state.user.id,candidate_id:c?.id||null,action,candidate_name:c?.name||"",candidate_reading:c?.reading||"",detail};
- const {error}=await sb.from("name_history").insert(row);if(error)throw error;
-}
-async function addCandidate(){
- if(!state.actor){$("#settingsDialog").showModal();return}
- const name=$("#nameInput").value.trim(),reading=$("#readingInput").value.trim();if(!name||!reading){alert("名前と読みを入れてま！");return}
- const tags=parseTags($("#tagsInput").value);
- const autoTotal=$("#strokesInput").dataset.total ? Number($("#strokesInput").dataset.total) : strokeTotal($("#strokesInput").value);
- const row={room_code:ROOM,name,reading,strokes_text:$("#strokesInput").value.trim(),stroke_total:autoTotal,char_count:count(name),memo:$("#memoInput").value.trim(),tags,actor:state.actor,owner_device_id:state.user.id,status:"candidate",meaning:$("#meaningInput").value.trim(),nanori:$("#nanoriInput").value.trim(),stroke_order:$("#strokeOrderInput").value.trim(),like_mako:false,like_nae:false,ratings_mako:{},ratings_nae:{}};
- const {data,error}=await sb.from("name_candidates").insert(row).select().single();
- if(error){alert(error.message);return}
- await history("候補追加",data);await refresh();
- ["#nameInput","#readingInput","#strokesInput","#tagsInput","#memoInput","#meaningInput","#nanoriInput","#strokeOrderInput"].forEach(s=>$(s).value="");
- $("#strokesInput").dataset.total="";$("#strokesInput").readOnly=true;$("#strokeStatus").textContent="名前を入力すると自動取得しま（漢字・かな対応）";
- renderTagSuggestions($("#tagSuggestions"),$("#tagsInput"));preview();
-}
-async function updateCandidate(c,patch,action,detail=""){
- const dbPatch={...patch};
- if(patch.likes){dbPatch.like_mako=patch.likes.mako;dbPatch.like_nae=patch.likes.nae;delete dbPatch.likes}
- const {error}=await sb.from("name_candidates").update(dbPatch).eq("id",c.id);if(error){alert(error.message);return}
- await history(action,c,detail);await refresh();
-}
-async function toggleLike(c,key){
- const likes={...(c.likes||{mako:false,nae:false}),[key]:!c.likes?.[key]};
- await updateCandidate(c,{likes},likes[key]?`${key==="mako"?"まこしゃ":"なえちゃ"}お気に入り登録`:`${key==="mako"?"まこしゃ":"なえちゃ"}お気に入り解除`);
-}
-async function setStatus(c,status){await updateCandidate(c,{status},"状態変更",statusName(status))}
-async function delCandidate(c){
- if(!confirm(`文谷 ${c.name} を候補から削除しま？`))return;
- await history("候補削除",c);
- const {error}=await sb.from("name_candidates").delete().eq("id",c.id);if(error){alert(error.message);return}
- state.compare=state.compare.filter(id=>id!==c.id);storage.set("babyma_compare",state.compare);await refresh();
-}
-async function addComment(c,input){
- const text=input.value.trim();if(!text)return;
- const row={room_code:ROOM,candidate_id:c.id,actor:state.actor||state.user.email,owner_device_id:state.user.id,comment:text};
- const {error}=await sb.from("name_comments").insert(row);if(error){alert(error.message);return}
- await history("コメント追加",c,text);await refresh();
-}
-async function deleteHistory(h){
- if(h.owner_device_id!==state.user.id)return;
- const {error}=await sb.from("name_history").delete().eq("id",h.id).eq("owner_device_id",state.user.id);
- if(error){alert(error.message);return} await refresh();
-}
+updateRegistrationMode();updateMetadataSearchMode();
+$('fScoreContents').addEventListener('input',updateScoreContentCount);
+$('enrichScoreBtn').addEventListener('click',enrichCurrentScore);
 
-function openEdit(c){
- state.editing=c;
- $("#editName").value=c.name||"";
- $("#editReading").value=c.reading||"";
- $("#editStrokes").value=c.strokes_text||"";
- $("#editStrokes").dataset.total=c.stroke_total==null?"":String(c.stroke_total);
- $("#editStrokes").readOnly=true;
- $("#editStrokeStatus").textContent=c.stroke_total!=null?`現在 ${c.stroke_total}画`:"名前を変更すると自動取得しま";
- $("#editTags").value=(c.tags||[]).join(",");$("#editNewTagInput").value="";
- $("#editMeaning").value=c.meaning||"";
- $("#editNanori").value=c.nanori||"";
- $("#editStrokeOrder").value=c.stroke_order||"";
- $("#editMemo").value=c.memo||"";
- renderTagSuggestions($("#editTagSuggestions"),$("#editTags"));
- $("#editDialog").showModal();
+function splitTags(v){return String(v||'').split(/[;；\n]+/).map(x=>x.trim()).filter(Boolean)}
+
+function mergeSelectedTags(hiddenId,values){
+  const merged=uniqTags([...(selectedTagsFromHidden(hiddenId)||[]),...(values||[])]);
+  saveSelectedTags(hiddenId,merged);
 }
-async function saveEdit(){
- const c=state.editing;if(!c)return;
- const name=$("#editName").value.trim(),reading=$("#editReading").value.trim();
- if(!name||!reading){alert("名前と読みを入れてま！");return}
- const total=$("#editStrokes").dataset.total ? Number($("#editStrokes").dataset.total) : strokeTotal($("#editStrokes").value);
- const patch={
-   name,reading,
-   strokes_text:$("#editStrokes").value.trim(),
-   stroke_total:total,
-   char_count:count(name),
-   tags:parseTags($("#editTags").value),
-   meaning:$("#editMeaning").value.trim(),
-   nanori:$("#editNanori").value.trim(),
-   stroke_order:$("#editStrokeOrder").value.trim(),
-   memo:$("#editMemo").value.trim()
- };
- const {error}=await sb.from("name_candidates").update(patch).eq("id",c.id);
- if(error){alert(error.message);return}
- await history("候補編集",{...c,...patch},"内容を更新");
- state.editing=null;$("#editDialog").close();await refresh();
+function inferLanguageTagsFromText(text){
+  const t=String(text||"");
+  const out=[];
+  const pairs=[
+    ["日本語",/(?:歌詞|言語|text|lyrics?)\s*[：:]?\s*日本語|日本語(?:歌詞|テキスト)?|Japanese/i],
+    ["英語",/(?:歌詞|言語|text|lyrics?)\s*[：:]?\s*英語|英語(?:歌詞|テキスト)?|English/i],
+    ["ラテン語",/(?:歌詞|言語)\s*[：:]?\s*ラテン語|Latin/i],
+    ["ドイツ語",/(?:歌詞|言語)\s*[：:]?\s*ドイツ語|German/i],
+    ["フランス語",/(?:歌詞|言語)\s*[：:]?\s*フランス語|French/i],
+    ["イタリア語",/(?:歌詞|言語)\s*[：:]?\s*イタリア語|Italian/i],
+    ["スペイン語",/(?:歌詞|言語)\s*[：:]?\s*スペイン語|Spanish/i],
+    ["ロシア語",/(?:歌詞|言語)\s*[：:]?\s*ロシア語|Russian/i],
+    ["中国語",/(?:歌詞|言語)\s*[：:]?\s*中国語|Chinese/i],
+    ["韓国語",/(?:歌詞|言語)\s*[：:]?\s*韓国語|Korean/i]
+  ];
+  for(const [name,re] of pairs)if(re.test(t))out.push(name);
+  return uniqTags(out);
+}
+function parseScoreContents(text){
+  return String(text||'').split(/\n+/).map(x=>x.trim()).filter(Boolean).map((line,i)=>{
+    const p=line.split('|').map(x=>x.trim());
+    const page=(p[4]||'').match(/\d+/);
+    return {track_no:i+1,title:p[0]||'',composer:p[1]||null,lyricist:p[2]||null,arranger:p[3]||null,page_start:page?Number(page[0]):null};
+  }).filter(x=>x.title)
+}
+function scoreContentsToText(rows){
+  return (rows||[]).map(x=>{
+    const vals=[x.title||'',x.composer||'',x.lyricist||'',x.arranger||'',x.page_start||''];
+    while(vals.length>1 && !vals[vals.length-1])vals.pop();
+    return vals.join(' | ');
+  }).join('\n')
+}
+function updateScoreContentCount(){
+  const n=parseScoreContents($('fScoreContents').value).length;
+  $('scoreContentCount').textContent=n?`${n}曲`:'';
+}
+async function saveScoreContents(itemId){
+  if(!itemId)return;
+  const rows=parseScoreContents($('fScoreContents').value);
+  const del=await sb.from('score_contents').delete().eq('library_item_id',itemId);
+  if(del.error)throw del.error;
+  if(rows.length){
+    const ins=await sb.from('score_contents').insert(rows.map(r=>({...r,library_item_id:itemId})));
+    if(ins.error)throw ins.error;
+  }
+}
+function fillIfEmpty(id,value){
+  if(value===undefined||value===null||value==='')return false;
+  const el=$(id);if(!el||String(el.value||'').trim())return false;
+  el.value=Array.isArray(value)?value.join('; '):value;return true;
+}
+async function enrichCurrentScore(){
+  if($('fMaterialType').value!=='score')return;
+  const btn=$('enrichScoreBtn');btn.disabled=true;btn.textContent='外部DBを探索中…';
+  const search={materialType:'score',isbn:$('fIsbn').value.trim(),ismn:$('fIsmn').value.trim(),title:$('fScoreTitle').value.trim(),artist:$('fScoreComposer').value.trim(),label:$('fPublisher').value.trim(),enrich:true};
+  try{const{data,error}=await sb.functions.invoke('lookup-media',{body:{search,providers:providerSettings}});if(error)throw error;const m=data?.merged||data?.best||data?.candidates?.[0];if(!m){showToast('追加情報は見つかりませんでした');return}let count=0;count+=fillIfEmpty('fScoreTitle',m.title)?1:0;count+=fillIfEmpty('fScoreComposer',m.composer||m.artist)?1:0;count+=fillIfEmpty('fLyricist',m.lyricist)?1:0;count+=fillIfEmpty('fPublisher',m.publisher||m.label)?1:0;count+=fillIfEmpty('fIsbn',m.isbn)?1:0;count+=fillIfEmpty('fIsmn',m.ismn)?1:0;count+=fillIfEmpty('fScoreFormat',m.scoreFormat)?1:0;count+=fillIfEmpty('fDescription',m.description||'')?1:0;
+    const inferredLang=uniqTags([
+      ...(m.languageTags||[]),
+      ...inferLanguageTagsFromText([
+        m.description,m.notes,
+        m.rawSource?JSON.stringify(m.rawSource):'',
+        ...(data?.candidates||[]).map(c=>JSON.stringify(c))
+      ].join(' '))
+    ]);
+    if(inferredLang.length){
+      mergeSelectedTags('fLanguageTags',inferredLang);
+      renderTagPicker('language');
+      count++;
+    }if(!$('fScoreContents').value.trim()&&Array.isArray(m.contents)&&m.contents.length){$('fScoreContents').value=scoreContentsToText(m.contents);updateScoreContentCount();count++}if(!$('fCoverUrl').value&&m.coverUrl){$('fCoverUrl').value=m.coverUrl;updateCoverPreview(m.coverUrl,m.source||'外部データベース',m.sourceUrl||'');count++}if(Array.isArray(data?.sources))$('fRawSource').value=JSON.stringify({enrichmentSources:data.sources,candidates:data.candidates||[]});await autoFillScorePersonKana();
+    showToast(count?`${count}項目を補完しました`:'既存情報を優先したため変更はありません');}catch(err){console.error(err);showToast('メタデータ補完に失敗しました')}finally{btn.disabled=false;btn.textContent='外部DBから空欄を補完'}
 }
 
 
-function kanjiKinds(ch,sets){return sets?{joyo:sets.joyo.has(ch),jinmeiyo:sets.jinmeiyo.has(ch)}:{joyo:false,jinmeiyo:false}}
-function kindBadgesHtml(ch,sets){const k=kanjiKinds(ch,sets);let h="";if(k.joyo)h+='<span class="kind-badge kind-joyo">常用漢字</span>';if(k.jinmeiyo)h+='<span class="kind-badge kind-jinmeiyo">人名用漢字</span>';if(!k.joyo&&!k.jinmeiyo)h+='<span class="kind-badge kind-check">要確認</span>';return h}
-async function saveStockMemo(x,role,input){const field=role==="mako"?"memo_mako":"memo_nae";const {error}=await sb.from("kanji_stocks").update({[field]:input.value.trim()}).eq("id",x.id);if(error){alert(error.message);return}await refresh()}
-function dictionaryUsage(ch){
- const inStock=state.kanjiStocks.some(x=>x.kanji===ch);
- const inName=state.candidates.some(c=>[...(c.name||"")].includes(ch));
- return {inStock,inName};
+async function loadLibrary(){
+  const{data,error}=await sb.from('library_items').select('*').order('created_at',{ascending:false});
+  if(error){alert('ライブラリを取得できませんでした。');return}
+  library=data||[];
+  const scoreIds=library.filter(x=>x.material_type==='score'||x.media_type==='楽譜').map(x=>x.id).filter(Boolean);
+  let contents=[];
+  if(scoreIds.length){
+    const res=await sb.from('score_contents').select('*').in('library_item_id',scoreIds).order('track_no',{ascending:true});
+    if(!res.error)contents=res.data||[];
+  }
+  const byItem={};contents.forEach(c=>(byItem[c.library_item_id]??=[]).push(c));
+  library.forEach(x=>x.score_contents=byItem[x.id]||[]);
+  updateStats();renderLibrary()
+}function qty(a){return a.reduce((s,x)=>s+(Number(x.quantity)||1),0)}function updateStats(){$('countAll').textContent=qty(library);$('countCD').textContent=qty(library.filter(x=>x.material_type!=='score'&&['CD','CD-R'].includes(x.media_type)));$('countVideo').textContent=qty(library.filter(x=>x.material_type!=='score'&&['DVD','DVD-R','Blu-ray'].includes(x.media_type)));$('countScore').textContent=qty(library.filter(x=>x.material_type==='score'||x.media_type==='楽譜'));$('countReview').textContent=library.filter(x=>x.needs_review).length}
+function renderLibrary(){
+  const q=$('searchInput').value.trim().toLowerCase(),g=$('genreFilter').value,r=$('reviewFilter').value,m=$('materialFilter').value,list=$('libraryList');
+  list.innerHTML='';
+  const items=library.filter(x=>{
+    const hay=[x.search_text,x.title,x.title_kana,x.artist,x.artist_kana,x.composer,x.composer_kana,x.lyricist,x.lyricist_kana,x.arranger,x.conductor,x.performers,x.ensemble,x.label,x.publisher,x.catalog_no,x.barcode,x.isbn,x.ismn,x.edition,x.series,x.score_format,...(x.voicing_tags||[]),...(x.instrumentation_tags||[]),...(x.language_tags||[]),x.description,x.location,x.operator_name,...(x.playlist||[]),...(x.tags||[]),...(x.score_contents||[]).flatMap(c=>[c.title,c.title_original,c.composer,c.lyricist,c.arranger,c.voicing,c.accompaniment,c.language,c.notes])].filter(Boolean).join(' ').toLowerCase();
+    const mt=x.material_type||((x.media_type==='楽譜')?'score':'media');
+    return(!q||hay.includes(q))&&(!g||x.genre===g)&&(!m||mt===m)&&(!r||String(x.needs_review)===r)
+  });
+  if(!items.length){list.innerHTML='<p class="muted">該当する資料はありません。</p>';return}
+  items.forEach(item=>{
+    const n=$('itemTemplate').content.cloneNode(true);
+    const article=n.querySelector('.library-item');
+    const isScore=item.material_type==='score'||item.media_type==='楽譜';
+    if(isScore)article.classList.add('score-item');
+    n.querySelector('.media-pill').textContent=isScore?'楽譜':(item.media_type||'CD');
+    n.querySelector('.genre-pill').textContent=item.genre||'ジャンル未設定';
+    n.querySelector('.review-pill').classList.toggle('hidden',!item.needs_review);
+    n.querySelector('.item-title').textContent=item.title;
+    n.querySelector('.item-artist').textContent=isScore?[item.composer,item.lyricist?`作詞：${item.lyricist}`:''].filter(Boolean).join(' / '):(item.artist||'');
+    n.querySelector('.item-meta').textContent=isScore
+      ? [item.publisher,item.voicing,item.score_format,item.isbn?`ISBN ${item.isbn}`:'',item.ismn?`ISMN ${item.ismn}`:'',item.catalog_no].filter(Boolean).join(' / ')
+      : [item.composer,item.conductor,item.ensemble,item.release_year,item.catalog_no].filter(Boolean).join(' / ');
+    const cq=$('searchInput').value.trim().toLowerCase();
+    const hitSongs=(item.score_contents||[]).filter(c=>cq&&[c.title,c.title_original,c.composer,c.lyricist,c.arranger].filter(Boolean).join(' ').toLowerCase().includes(cq)).slice(0,3);
+    n.querySelector('.item-location').textContent=[
+      item.location?`収納：${item.location}`:'',
+      item.quantity>1?`所蔵数：${item.quantity}`:'',
+      hitSongs.length?`収録：${hitSongs.map(c=>c.title).join('、')}`:''
+    ].filter(Boolean).join(' / ');
+    n.querySelector('.item-operator').textContent=`入力者：${item.operator_name||'-'}`;
+    const cover=n.querySelector('.item-cover');if(item.cover_url){cover.src=item.cover_url;cover.classList.remove('hidden')}
+    else if(isScore){cover.classList.remove('hidden');cover.alt='楽譜';cover.removeAttribute('src')}
+    n.querySelector('.edit-item').addEventListener('click',()=>openEditor(item));list.appendChild(n)
+  })
 }
-async function renderDictionary(){
- const grid=$("#dictionaryGrid"),status=$("#dictionaryStatus"),note=$("#dictionarySortNote");
- if(!grid)return;
- status.textContent="辞典データを読み込み中…";note.textContent="";
- const sets=await getLegalSets();
- const enriched=await getDictionaryData();
- if(!sets){status.textContent="漢字一覧を取得できなま";return}
 
- let rows=[];
- if(enriched){
-   rows=[
-    ...enriched.joyo.map(d=>({...d,type:"joyo"})),
-    ...enriched.jinmeiyo.filter(d=>!sets.joyo.has(d.kanji)).map(d=>({...d,type:"jinmeiyo"}))
-   ];
- }else{
-   rows=[
-    ...[...sets.joyo].map(ch=>({kanji:ch,type:"joyo"})),
-    ...[...sets.jinmeiyo].filter(ch=>!sets.joyo.has(ch)).map(ch=>({kanji:ch,type:"jinmeiyo"}))
-   ];
- }
 
- const q=$("#dictionarySearch").value.trim(),type=$("#dictionaryTypeFilter").value,sort=$("#dictionarySort").value;
- if(q)rows=rows.filter(x=>x.kanji===q);
- if(type!=="all")rows=rows.filter(x=>x.type===type);
+function openMetadataSearch(){
+  $('metadataSearchModal').classList.remove('hidden');
+  $('metadataSearchStatus').textContent='';
+  setTimeout(()=>$('msCatalogNo').focus(),50);
+}
+function closeMetadataSearch(){$('metadataSearchModal').classList.add('hidden')}
 
- if(sort==="radical"){
-   try{
-     const rm=await ensureRadicalMap();
-     rows.sort((a,b)=>{
-       const ra=rm[a.kanji]||{radical:999,residual:999},rb=rm[b.kanji]||{radical:999,residual:999};
-       return ra.radical-rb.radical||ra.residual-rb.residual||a.kanji.localeCompare(b.kanji,"ja");
-     });
-     note.textContent="部首番号 → 部首以外の画数 → 文字の順で表示しま。";
-   }catch(e){
-     console.warn(e);note.textContent="部首データを取得できなま。文字順で表示しま。";
-     rows.sort((a,b)=>a.kanji.localeCompare(b.kanji,"ja"));
-   }
- }else if(sort==="stroke_asc"){
-   rows.sort((a,b)=>(a.stroke_count??999)-(b.stroke_count??999)||a.kanji.localeCompare(b.kanji,"ja"));
-   note.textContent="総画数の少ない順ま。";
- }else if(sort==="stroke_desc"){
-   rows.sort((a,b)=>(b.stroke_count??-1)-(a.stroke_count??-1)||a.kanji.localeCompare(b.kanji,"ja"));
-   note.textContent="総画数の多い順ま。";
- }else if(sort==="grade"){
-   rows.sort((a,b)=>(a.grade??99)-(b.grade??99)||(a.stroke_count??99)-(b.stroke_count??99));
-   note.textContent="小学校1〜6年 → 中学校 → 人名用漢字の順ま。";
- }else if(sort==="frequency"){
-   rows.sort((a,b)=>(a.freq_mainichi_shinbun??999999)-(b.freq_mainichi_shinbun??999999));
-   note.textContent="毎日新聞の漢字出現頻度データをもとに、よく使われる順ま。";
- }else if(sort==="jlpt"){
-   rows.sort((a,b)=>(b.jlpt??-1)-(a.jlpt??-1)||(a.stroke_count??99)-(b.stroke_count??99));
-   note.textContent="旧JLPTの易しい側から並べま（未設定字は後ろ）。";
- }else if(sort==="char"){
-   rows.sort((a,b)=>a.kanji.localeCompare(b.kanji,"ja"));
- }else{
-   rows.sort((a,b)=>a.type===b.type?a.kanji.localeCompare(b.kanji,"ja"):(a.type==="joyo"?-1:1));
- }
+async function searchMetadata(e){
+  e.preventDefault();
+  const search={
+    materialType:$('msMaterialType').value,
+    catalogNo:$('msCatalogNo').value.trim(),
+    isbn:$('msIsbn').value.trim(),
+    ismn:$('msIsmn').value.trim(),
+    title:$('msTitle').value.trim(),
+    artist:$('msArtist').value.trim(),
+    label:$('msLabel').value.trim(),
+    year:$('msYear').value.trim()
+  };
+  if(!search.catalogNo&&!search.isbn&&!search.ismn&&!search.title&&!search.artist&&!search.label){
+    $('metadataSearchStatus').textContent='規格品番・ISBN・ISMN・タイトル・作曲者・出版社など、いずれかを入力してください。';return;
+  }
+  $('metadataSearchResults').innerHTML='';
+  $('metadataSearchStatus').textContent='外部データベースを横断検索しています…';
+  try{
+    const {data,error}=await sb.functions.invoke('lookup-media',{body:{search,providers:providerSettings}});
+    if(error)throw error;
+    $('metadataSearchStatus').textContent=data?.found
+      ? `${data.candidates.length}件の候補が見つかりました。盤面・ケースの品番や発売年を確認して選択してください。`
+      : `候補が見つかりませんでした。${formatAttempts(data?.attempts||[])}`;
+    renderMetadataCandidates(data?.candidates||[]);
+    if(data?.attempts?.length)showSource(formatAttempts(data.attempts));
+  }catch(err){console.error(err);$('metadataSearchStatus').textContent='外部データベース検索に失敗しました。検索条件を変えて再度お試しください。';}
+}
 
- $("#dictionaryCount").textContent=`${rows.length}字`;
- status.textContent=`${rows.length}字を表示`;
- grid.innerHTML="";
- const frag=document.createDocumentFragment();
- rows.forEach(x=>{
-   const b=document.createElement("button");b.type="button";
-   const usage=dictionaryUsage(x.kanji);
-   const usageClass=usage.inStock&&usage.inName?"used-both":usage.inStock?"used-stock":usage.inName?"used-name":"";
-   b.className=`dictionary-char ${x.type} ${usageClass}`.trim();
-   let meta="";
-   if(sort.startsWith("stroke")&&x.stroke_count!=null)meta=`<span class="dictionary-char-meta">${x.stroke_count}画</span>`;
-   else if(sort==="grade")meta=`<span class="dictionary-char-meta">${gradeLabel(x.grade)}</span>`;
-   else if(sort==="radical"&&state.radicalMap?.[x.kanji])meta=`<span class="dictionary-char-meta">部${state.radicalMap[x.kanji].radical}</span>`;
-   const usageMark=usage.inStock&&usage.inName?"★名":usage.inStock?"★":usage.inName?"名":"";
-   b.innerHTML=`${esc(x.kanji)}${meta}${usageMark?`<span class="dictionary-usage-mark">${usageMark}</span>`:""}`;
-   b.onclick=()=>openDictionaryDetail(x.kanji);frag.appendChild(b)
- });
- grid.appendChild(frag);
+function renderMetadataCandidates(items){
+  const list=$('metadataSearchResults');list.innerHTML='';
+  if(!items.length){list.innerHTML='<div class="candidate-empty">候補はありません。条件を少し減らすか、表記を変えて検索してください。</div>';return;}
+  items.forEach((item,index)=>{
+    const card=document.createElement('article');card.className='candidate-card';
+    let cover;
+    if(item.coverUrl){cover=document.createElement('img');cover.className='candidate-cover';cover.src=item.coverUrl;cover.alt='';}
+    else{cover=document.createElement('div');cover.className='candidate-cover placeholder';cover.textContent='💿';}
+    const body=document.createElement('div');
+    const title=document.createElement('h3');title.className='candidate-title';title.textContent=item.title||'タイトル不明';
+    if(item.matchScore){const badge=document.createElement('span');badge.className='candidate-score';badge.textContent=`一致度 ${Math.round(item.matchScore)}`;title.appendChild(badge)}
+    const sub=document.createElement('p');sub.className='candidate-sub';sub.textContent=item.artist||'';
+    const meta=document.createElement('p');meta.className='candidate-meta';meta.textContent=[item.label,item.catalogNo,item.year,item.mediaType].filter(Boolean).join(' / ');
+    const src=document.createElement('p');src.className='candidate-source';src.textContent=`取得元：${item.source||'-'}`;
+    body.append(title,sub,meta,src);
+    const btn=document.createElement('button');btn.className='primary candidate-select';btn.type='button';btn.textContent='この盤を選ぶ';btn.addEventListener('click',()=>selectMetadataCandidate(item));
+    card.append(cover,body,btn);list.appendChild(card);
+  });
 }
-async function openDictionaryDetail(ch){
- state.dictionarySelected=ch;$("#dictionaryDetail").hidden=false;$("#dictionaryDetailChar").textContent=ch;
- const sets=await getLegalSets();$("#dictionaryDetailType").innerHTML=kindBadgesHtml(ch,sets);
- const info=$("#dictionaryDetailInfo");info.textContent="読み込み中…";
- const d=await getKanjiDetail(ch);if(!d){info.textContent="辞書情報を取得できなま";return}
- let radicalText="—";
- if(state.radicalMap?.[ch])radicalText=`部首番号 ${state.radicalMap[ch].radical}・残り${state.radicalMap[ch].residual}画`;
- info.innerHTML=`<div>画数：${d.stroke_count??"—"}画</div>
- <div>部首：${esc(radicalText)}</div>
- <div>学年区分：${esc(gradeLabel(d.grade))}</div>
- <div>音読み：${esc((d.on_readings||[]).join("・")||"—")}</div>
- <div>訓読み：${esc((d.kun_readings||[]).join("・")||"—")}</div>
- <div>名乗り：${esc((d.name_readings||[]).join("・")||"—")}</div>
- <div>JLPT：${d.jlpt?`N相当データ ${esc(String(d.jlpt))}`:"—"}</div>
- <div>新聞頻度順位：${d.freq_mainichi_shinbun??"—"}</div>
- <div>意味：${esc((d.meanings||[]).join(", ")||"—")}</div>`;
-}
-async function addDictionarySelectedToStock(){const ch=state.dictionarySelected;if(!ch)return;if(state.kanjiStocks.some(x=>x.kanji===ch)){showToast(`${ch} はもうストック済みま！`);return}const d=await getKanjiDetail(ch);const row={room_code:ROOM,kanji:ch,stroke_count:d?.stroke_count??null,on_readings:d?.on_readings||[],kun_readings:d?.kun_readings||[],name_readings:d?.name_readings||[],meanings:d?.meanings||[],memo_mako:"",memo_nae:"",actor:state.actor||state.user?.email||"家族",owner_user_id:state.user.id};const {error}=await sb.from("kanji_stocks").insert(row);if(error){alert(error.message);return}showToast(`${ch} をストックしまし！`);await refresh()}
-async function addKanjiStock(){
- const ch=$("#kanjiStockInput").value.trim(),memo=$("#kanjiStockMemo").value.trim();
- if(!ch){alert("漢字を1文字入れてま！");return}
- if([...ch].length!==1||!isKanji(ch)){alert("漢字1文字を入れてま！");return}
- if(state.kanjiStocks.some(x=>x.kanji===ch)){alert(`${ch} はもうストック済みま！`);return}
- const d=await getKanjiDetail(ch);
- const row={room_code:ROOM,kanji:ch,stroke_count:d?.stroke_count??null,on_readings:d?.on_readings||[],kun_readings:d?.kun_readings||[],name_readings:d?.name_readings||[],meanings:d?.meanings||[],memo_mako:state.role==="mako"?memo:"",memo_nae:state.role==="nae"?memo:"",actor:state.actor||state.user?.email||"家族",owner_user_id:state.user.id};
- const {error}=await sb.from("kanji_stocks").insert(row);if(error){alert(error.message);return}
- $("#kanjiStockInput").value="";$("#kanjiStockMemo").value="";await refresh();
-}
-async function deleteKanjiStock(x){
- if(!confirm(`${x.kanji} を漢字ストックから外しま？`))return;
- const {error}=await sb.from("kanji_stocks").delete().eq("id",x.id);if(error){alert(error.message);return}
- await refresh();
-}
-function sendKanjiToCandidate(x){
- $("#nameInput").value=x.kanji;preview();$("#nameInput").dispatchEvent(new Event("input"));
- window.scrollTo({top:$("#nameInput").getBoundingClientRect().top+window.scrollY-120,behavior:"smooth"});
- $("#readingInput").focus();
-}
-async function renderKanjiStocks(){
- const list=$("#kanjiStockList"),empty=$("#kanjiStockEmpty");list.innerHTML="";$("#kanjiStockCount").textContent=`${state.kanjiStocks.length}字`;empty.hidden=state.kanjiStocks.length>0;const sets=await getLegalSets();
- state.kanjiStocks.forEach(x=>{const card=document.createElement("article");card.className="kanji-stock-card";const on=(x.on_readings||[]).join("・")||"—",kun=(x.kun_readings||[]).join("・")||"—",names=(x.name_readings||[]).join("・")||"—",meanings=(x.meanings||[]).slice(0,4).join(", ")||"—",m=x.memo_mako||"",n=x.memo_nae||"";
- card.innerHTML=`<div class="kanji-stock-char">${esc(x.kanji)}</div><div class="kanji-kind-badges">${kindBadgesHtml(x.kanji,sets)}</div><div class="kanji-stock-meta">${x.stroke_count??"—"}画 ・ ${esc(x.actor||"家族")} ・ ${esc(fmt(x.created_at))}</div><div class="kanji-stock-info"><div>音：${esc(on)}</div><div>訓：${esc(kun)}</div><div>名乗り：${esc(names)}</div><div>意味：${esc(meanings)}</div></div>
- <div class="stock-memo-grid"><div class="stock-memo-box"><div class="stock-memo-title">まこしゃメモ</div><div class="stock-memo-text">${esc(m)||"—"}</div>${state.role==="mako"?`<div class="stock-memo-edit"><input class="memo-mako-input" maxlength="120" value="${esc(m)}"><button class="secondary memo-mako-save">保存</button></div>`:""}</div><div class="stock-memo-box"><div class="stock-memo-title">なえちゃメモ</div><div class="stock-memo-text">${esc(n)||"—"}</div>${state.role==="nae"?`<div class="stock-memo-edit"><input class="memo-nae-input" maxlength="120" value="${esc(n)}"><button class="secondary memo-nae-save">保存</button></div>`:""}</div></div>
- <div class="kanji-stock-actions"><button class="secondary stock-use">名前候補に使う</button><button class="secondary stock-delete">ストックから外す</button></div>`;
- card.querySelector(".stock-use").onclick=()=>sendKanjiToCandidate(x);card.querySelector(".stock-delete").onclick=()=>deleteKanjiStock(x);const mi=card.querySelector(".memo-mako-input"),ms=card.querySelector(".memo-mako-save");if(mi&&ms)ms.onclick=()=>saveStockMemo(x,"mako",mi);const ni=card.querySelector(".memo-nae-input"),ns=card.querySelector(".memo-nae-save");if(ni&&ns)ns.onclick=()=>saveStockMemo(x,"nae",ni);list.appendChild(card)});
-}
-function toggleCompare(c){
- if(state.compare.includes(c.id)) state.compare=state.compare.filter(x=>x!==c.id);
- else {if(state.compare.length>=4){alert("比較は4件までま！");return}state.compare.push(c.id)}
- storage.set("babyma_compare",state.compare);renderCompare();render();
-}
-function renderCompare(){
- const grid=$("#compareGrid");grid.innerHTML="";
- state.compare=state.compare.filter(id=>state.candidates.some(c=>c.id===id));storage.set("babyma_compare",state.compare);
- state.compare.map(id=>state.candidates.find(c=>c.id===id)).forEach(c=>{
-  const d=document.createElement("div");d.className="compare-item";const likes=(c.likes?.mako?1:0)+(c.likes?.nae?1:0);
-  d.innerHTML=`<div class="compare-name">文谷 ${esc(c.name)}</div><div class="full-reading">ぶんや ${esc(c.reading)}</div>
-    <div class="compare-table">
-    <div><span>画数</span><strong>${c.stroke_total??"—"}</strong></div>
-    <div><span>文字数</span><strong>${c.char_count??count(c.name)}</strong></div>
-    <div><span>状態</span><strong>${statusName(c.status)}</strong></div>
-    <div><span>★</span><strong>${likes}/2</strong></div>
-    <div><span>提案</span><strong>${esc(c.actor||"家族")}</strong></div></div>`;
-  grid.appendChild(d);
- })
- if(!state.compare.length)grid.innerHTML='<div class="hint">まだ比較対象がなま。</div>';
-}
-function sorted(){
- const q=$("#searchInput").value.trim().toLowerCase(),sf=$("#statusFilter").value;
- let a=state.candidates.filter(c=>(sf==="all"||c.status===sf)&&(!q||[c.name,c.reading,c.memo,c.actor,c.meaning,c.nanori,c.stroke_order,...(c.tags||[])].some(v=>(v||"").toLowerCase().includes(q))));
- const s=$("#sortSelect").value,txt=(a,b)=>(a||"").localeCompare(b||"","ja"),n=v=>v==null?99999:Number(v),likes=c=>(c.likes?.mako?1:0)+(c.likes?.nae?1:0);
- const f={created_desc:(a,b)=>new Date(b.created_at)-new Date(a.created_at),created_asc:(a,b)=>new Date(a.created_at)-new Date(b.created_at),reading_asc:(a,b)=>txt(a.reading,b.reading),reading_desc:(a,b)=>txt(b.reading,a.reading),strokes_asc:(a,b)=>n(a.stroke_total)-n(b.stroke_total),strokes_desc:(a,b)=>n(b.stroke_total)-n(a.stroke_total),chars_asc:(a,b)=>n(a.char_count)-n(b.char_count),chars_desc:(a,b)=>n(b.char_count)-n(a.char_count),likes_desc:(a,b)=>likes(b)-likes(a)||new Date(b.created_at)-new Date(a.created_at),proposer_asc:(a,b)=>txt(a.actor,b.actor)};
- return a.sort(f[s]);
-}
-function render(){
- const list=$("#candidateList");list.innerHTML="";const arr=sorted();$("#emptyState").hidden=arr.length>0;
- const favCount=state.candidates.filter(c=>c.likes?.mako||c.likes?.nae).length;
- $("#stats").textContent=`候補 ${state.candidates.length}件 ／ ★あり ${favCount}件 ／ 保留 ${state.candidates.filter(c=>c.status==="hold").length}件 ／ 却下 ${state.candidates.filter(c=>c.status==="rejected").length}件`;
- arr.forEach(c=>{
-  const n=$("#candidateTemplate").content.cloneNode(true);
-  n.querySelector(".full-name").textContent=`文谷　${c.name}`;n.querySelector(".full-reading").textContent=`ぶんや　${c.reading}`;
-  const chips=n.querySelector(".chips");
-  [[`${c.char_count??count(c.name)}文字`,""],[c.stroke_total!=null?`${c.stroke_total}画`:"画数未入力",""],[`${c.actor||"家族"}提案`,"proposer"],[statusName(c.status),c.status==="hold"?"status-hold":c.status==="rejected"?"status-rejected":""]].forEach(([t,cl])=>{let s=document.createElement("span");s.className=`chip ${cl}`;s.textContent=t;chips.appendChild(s)});
-  (c.tags||[]).forEach(t=>{let s=document.createElement("span");s.className="chip tag";s.textContent=`#${t}`;chips.appendChild(s)});
-  n.querySelector(".memo").textContent=c.memo||"";n.querySelector(".meaning").textContent=c.meaning||"—";n.querySelector(".nanori").textContent=c.nanori||"—";n.querySelector(".stroke-order").textContent=c.stroke_order||"—";
-  const ss=n.querySelector(".status-select");ss.value=c.status||"candidate";ss.onchange=()=>setStatus(c,ss.value);
-  const vm=n.querySelector(".vote-mako"),vn=n.querySelector(".vote-nae");vm.classList.toggle("on",!!c.likes?.mako);vn.classList.toggle("on",!!c.likes?.nae);vm.textContent=`${c.likes?.mako?"★":"☆"} まこしゃ`;vn.textContent=`${c.likes?.nae?"★":"☆"} なえちゃ`;vm.onclick=()=>toggleLike(c,"mako");vn.onclick=()=>toggleLike(c,"nae");
-  n.querySelector(".created").textContent=`${fmt(c.created_at)} ・ ${c.actor||"家族"}`;n.querySelector(".delete").onclick=()=>delCandidate(c);
-  const ca=n.querySelector(".compare-add");ca.textContent=state.compare.includes(c.id)?"比較から外す":"比較に追加";ca.onclick=()=>toggleCompare(c);
-  n.querySelector(".edit").onclick=()=>openEdit(c);
-  const cl=n.querySelector(".comment-list");state.comments.filter(x=>x.candidate_id===c.id).forEach(cm=>{let d=document.createElement("div");d.className="comment";d.innerHTML=`<div class="comment-meta">${esc(cm.actor)} ・ ${esc(fmt(cm.created_at))}</div>${esc(cm.comment)}`;cl.appendChild(d)});
-  const ci=n.querySelector(".comment-input");n.querySelector(".comment-add").onclick=()=>addComment(c,ci);
-  const card=n.querySelector(".candidate");
-  renderCallPreview(c,card);renderRatings(c,card);renderCandidateHistory(c,card);
-  list.appendChild(n);
-  renderLegalAndKanjiInfo(c,list.lastElementChild);
- });
- const hl=$("#historyList");hl.innerHTML="";$("#historyCount").textContent=`(${state.history.length})`;
- state.history.forEach(h=>{let d=document.createElement("div");d.className="history-item";let own=h.owner_device_id===state.user.id;d.innerHTML=`<div class="history-row"><div><strong>${esc(h.action)}</strong>　文谷 ${esc(h.candidate_name)}<div class="history-meta">${esc(fmt(h.created_at))} ・ ${esc(h.actor)}${h.detail?" ・ "+esc(h.detail):""}</div></div>${own?'<button class="history-delete secondary">自分の履歴を削除</button>':""}</div>`;if(own)d.querySelector(".history-delete").onclick=()=>deleteHistory(h);hl.appendChild(d)});
- renderCompare();
-}
-function preview(){ $("#previewName").textContent=`文谷　${$("#nameInput").value.trim()||"——"}`;$("#previewReading").textContent=`ぶんや　${$("#readingInput").value.trim()||"——"}`}
 
-if($("#refreshAppBtn")) $("#refreshAppBtn").onclick=()=>updateApp(false);
-$("#loginBtn").onclick=login;
-$("#loginPassword").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
-$("#logoutBtn").onclick=logout;
+function selectMetadataCandidate(item){
+  closeMetadataSearch();
+  openEditor(mapServerCandidate(item,''));
+  $('lookupMessage').textContent=`${item.source||'外部データベース'}の候補を登録画面に反映しました。内容を確認してください。`;
+  showSource(`取得元：${item.source||'-'} / バーコードなし検索`);
+}
 
-const autoStrokeAdd=debounce(()=>fetchStrokeInfo($("#nameInput").value,$("#strokesInput"),$("#strokeStatus")),450);
-const autoStrokeEdit=debounce(()=>fetchStrokeInfo($("#editName").value,$("#editStrokes"),$("#editStrokeStatus")),450);
+async function lookupBarcode(raw){
+  const barcode=raw.replace(/\D/g,'');
+  if(!barcode){
+    $('lookupMessage').textContent='バーコードを入力してください。';
+    return;
+  }
 
-$("#nameInput").oninput=()=>{preview();$("#strokesInput").readOnly=true;autoStrokeAdd()};
-$("#readingInput").oninput=preview;
-$("#manualStrokeBtn").onclick=()=>enableManualStroke($("#strokesInput"),$("#strokeStatus"));
-$("#addNewTagBtn").onclick=()=>addManualTag($("#tagsInput"),$("#newTagInput"),$("#tagSuggestions"));
-$("#newTagInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addManualTag($("#tagsInput"),$("#newTagInput"),$("#tagSuggestions"))}});
+  $('barcodeInput').value=barcode;
+  $('sourceMessage').classList.add('hidden');
+  $('explorerStatus').classList.remove('hidden');
+  $('explorerText').textContent='棚の奥まで探索しています…';
 
-$("#editName").oninput=()=>{$("#editStrokes").readOnly=true;autoStrokeEdit()};
-$("#editManualStrokeBtn").onclick=()=>enableManualStroke($("#editStrokes"),$("#editStrokeStatus"));
-$("#editAddNewTagBtn").onclick=()=>addManualTag($("#editTags"),$("#editNewTagInput"),$("#editTagSuggestions"));
-$("#editNewTagInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addManualTag($("#editTags"),$("#editNewTagInput"),$("#editTagSuggestions"))}});
-$("#saveEditBtn").onclick=saveEdit;
-$("#closeEditBtn").onclick=()=>{state.editing=null;$("#editDialog").close()};
+  const existing=library.filter(x=>x.barcode===barcode);
+  if(existing.length){
+    $('lookupMessage').textContent=
+      `同じバーコードがすでに${existing.length}件あります。外部情報も確認します。`;
+  }else{
+    $('lookupMessage').textContent='外部データベースを検索しています…';
+  }
 
-document.querySelectorAll(".bottom-tab").forEach(b=>b.onclick=()=>switchAppTab(b.dataset.tab));
-if($("#dictionarySearch")) $("#dictionarySearch").oninput=renderDictionary;
-if($("#dictionaryTypeFilter")) $("#dictionaryTypeFilter").onchange=renderDictionary;
-if($("#dictionarySort")) $("#dictionarySort").onchange=renderDictionary;
-if($("#closeDictionaryDetail")) $("#closeDictionaryDetail").onclick=()=>{$("#dictionaryDetail").hidden=true;state.dictionarySelected=null};
-if($("#dictionaryAddStockBtn")) $("#dictionaryAddStockBtn").onclick=addDictionarySelectedToStock;
-if($("#addKanjiStockBtn")) $("#addKanjiStockBtn").onclick=addKanjiStock;
-$("#kanjiStockInput").addEventListener("keydown",e=>{if(e.key==="Enter")addKanjiStock()});
-$("#addBtn").onclick=addCandidate;$("#searchInput").oninput=render;$("#sortSelect").onchange=render;$("#statusFilter").onchange=render;
-$("#clearCompareBtn").onclick=()=>{state.compare=[];storage.set("babyma_compare",[]);render()};
-$("#updatesBtn").onclick=()=>$("#updatesDialog").showModal();
-$("#closeUpdatesBtn").onclick=()=>$("#updatesDialog").close();
-$("#settingsBtn").onclick=()=>$("#settingsDialog").showModal();$("#closeSettingsBtn").onclick=()=>$("#settingsDialog").close();
-$("#saveSettingsBtn").onclick=()=>{state.actor=$("#actorInput").value.trim();state.role=$("#roleInput").value;storage.set("babyma_actor",state.actor);storage.set("babyma_role",state.role);$("#settingsDialog").close();render()};
-init();
+  try{
+    const {data,error}=await sb.functions.invoke('lookup-media',{
+      body:{barcode,materialType:$('registrationMaterialType').value,providers:providerSettings}
+    });
+
+    if(error)throw error;
+
+    $('explorerStatus').classList.add('hidden');
+
+    if(!data?.found || !data.best){
+      openEditor({barcode,material_type:$('registrationMaterialType').value,media_type:$('registrationMaterialType').value==='score'?'楽譜':'CD',isbn:$('registrationMaterialType').value==='score'&&/^97[89]/.test(barcode)?barcode:'',needs_review:true});
+      $('lookupMessage').textContent=
+        '外部データベースに一致する資料が見つかりませんでした。手動登録画面を開きました。';
+      showSource(formatAttempts(data?.attempts||[]));
+      return;
+    }
+
+    const best=data.best;
+    openEditor(mapServerCandidate(best,barcode));
+
+    const otherCount=Math.max(0,(data.candidates?.length||1)-1);
+    $('lookupMessage').textContent=otherCount
+      ? `候補を取得しました。ほかにも${otherCount}件の候補があります。内容を確認して保存してください。`
+      : '候補を取得しました。内容を確認して保存してください。';
+
+    showSource(
+      `取得元：${best.source} / ${formatAttempts(data.attempts||[])}`
+    );
+  }catch(error){
+    console.error('lookup-media error',error);
+    $('explorerStatus').classList.add('hidden');
+    openEditor({barcode,material_type:$('registrationMaterialType').value,media_type:$('registrationMaterialType').value==='score'?'楽譜':'CD',isbn:$('registrationMaterialType').value==='score'&&/^97[89]/.test(barcode)?barcode:'',needs_review:true});
+    $('lookupMessage').textContent=
+      '検索サーバーに接続できませんでした。手動登録画面を開きました。';
+    showSource('検索サービス：接続エラー');
+  }
+}
+
+function formatAttempts(attempts){
+  if(!attempts?.length)return '検索履歴なし';
+  return attempts.map(x=>{
+    const s=x.status==='found'?'取得'
+      :x.status==='not_found'?'該当なし'
+      :x.status==='disabled'?'未設定'
+      :x.status==='skipped'?'OFF'
+      :'接続失敗';
+    const detail=(x.status==='error'&&x.detail)
+      ? `（${String(x.detail).replace(/^Error:\s*/,'').slice(0,90)}）`
+      : '';
+    return `${x.name}：${s}${detail}`;
+  }).join(' / ');
+}
+
+function showSource(text){
+  $('sourceMessage').textContent=text;
+  $('sourceMessage').classList.remove('hidden');
+}
+
+function mapServerCandidate(r,barcode){
+  return{
+    barcode,
+    material_type:r.materialType||((r.mediaType==='楽譜')?'score':'media'),
+    media_type:r.mediaType||'CD',
+    title:r.title||'',
+    title_kana:r.titleKana||'',
+    artist_kana:r.artistKana||'',
+    release_date_text:r.releaseDateText||'',
+    album_type:r.albumType||'',
+    playlist:Array.isArray(r.playlist)?r.playlist:[],
+    books_genre_id:r.booksGenreId||'',
+    raw_source:r.rawSource||null,
+    artist:r.artist||'',
+    isbn:r.isbn||'',ismn:r.ismn||'',lyricist:r.lyricist||'',arranger:r.arranger||'',publisher:r.publisher||'',edition:r.edition||'',series:r.series||'',score_format:r.scoreFormat||'',voicing:r.voicing||'',accompaniment:r.accompaniment||'',language:r.language||'',page_count:r.pageCount||'',voicing_tags:Array.isArray(r.voicingTags)?r.voicingTags:[],instrumentation_tags:Array.isArray(r.instrumentationTags)?r.instrumentationTags:[],language_tags:uniqTags([...(Array.isArray(r.languageTags)?r.languageTags:[]),...inferLanguageTagsFromText([r.description,r.notes,r.rawSource?JSON.stringify(r.rawSource):''].join(' '))]),description:r.description||'',score_contents:Array.isArray(r.contents)?r.contents:[],
+    release_year:r.year||'',
+    label:r.label||'',
+    catalog_no:r.catalogNo||'',
+    disc_count:r.discCount||1,
+    genre:r.genre||'',
+    cover_url:r.coverUrl||'',
+    source_name:r.source||'',
+    source_url:r.sourceUrl||'',
+    notes:r.notes||'',
+    needs_review:true
+  };
+}
+function guessMediaType(r){const f=(r.media||[]).map(m=>(m.format||'').toLowerCase()).join(' ');if(f.includes('blu-ray'))return'Blu-ray';if(f.includes('dvd'))return'DVD';return'CD'}
+function openEditor(i){
+  $('editorCard').classList.remove('hidden');
+  const material=i.material_type||((i.media_type==='楽譜')?'score':'media');
+  $('itemId').value=i.id||'';setEditorMaterialType(material);
+  $('fCoverUrl').value=i.cover_url||'';$('fSourceName').value=i.source_name||'';$('fSourceUrl').value=i.source_url||'';$('fBooksGenreId').value=i.books_genre_id||'';$('fRawSource').value=i.raw_source?JSON.stringify(i.raw_source):'';updateCoverPreview(i.cover_url||'',i.source_name||'',i.source_url||'');
+  if(material==='score'){
+    $('fScoreTitle').value=i.title||'';$('fScoreComposer').value=i.composer||i.artist||'';$('fComposerKana').value=i.composer_kana||i.artist_kana||'';$('fLyricist').value=i.lyricist||'';$('fLyricistKana').value=i.lyricist_kana||'';$('fPublisher').value=i.publisher||i.label||'';$('fIsbn').value=i.isbn||((/^97[89]/.test(i.barcode||''))?i.barcode:'');$('fIsmn').value=i.ismn||'';$('fScoreFormat').value=i.score_format||'';saveSelectedTags('fVoicingTags',i.voicing_tags||[]);saveSelectedTags('fInstrumentationTags',i.instrumentation_tags||[]);saveSelectedTags('fLanguageTags',uniqTags([...(i.language_tags||[]),...inferLanguageTagsFromText([i.description,i.notes,i.raw_source?JSON.stringify(i.raw_source):''].join(' '))]));$('fScoreContents').value=scoreContentsToText(i.score_contents||[]);$('fDescription').value=i.description||'';$('fScoreNotes').value=i.id?(i.notes||''):'';updateScoreContentCount();renderAllScoreTagPickers();
+  }else{
+    $('fBarcode').value=i.barcode||'';$('fMediaType').value=i.media_type||'CD';$('fTitle').value=i.title||'';$('fArtist').value=i.artist||'';$('fTitleKana').value=i.title_kana||'';$('fArtistKana').value=i.artist_kana||'';$('fYear').value=i.release_year||'';$('fReleaseDateText').value=i.release_date_text||'';$('fLabel').value=i.label||'';$('fCatalogNo').value=i.catalog_no||'';$('fDiscCount').value=i.disc_count||1;$('fAlbumType').value=i.album_type||'';$('fComposer').value=i.composer||'';$('fConductor').value=i.conductor||'';$('fPerformers').value=i.performers||'';$('fEnsemble').value=i.ensemble||'';$('fGenre').value=i.genre||'';$('fLocation').value=i.location||'';$('fQuantity').value=i.quantity||1;$('fOperator').value=operatorName;$('fPlaylist').value=(i.playlist||[]).join('\n');$('fTags').value=(i.tags||[]).join('; ');$('fNotes').value=i.notes||'';
+  }
+  $('fNeedsReview').checked=!!i.needs_review;$('editorTitle').textContent=i.id?'登録内容を編集':'登録内容を確認';$('deleteItemBtn').classList.toggle('hidden',!i.id);const dup=i.barcode&&library.some(x=>x.barcode===i.barcode&&x.id!==i.id);$('duplicateBadge').classList.toggle('hidden',!dup);$('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+$('itemForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const p=formPayload(),id=$('itemId').value||null;let error,itemId=id;
+  if(id){
+    p.updated_at=new Date().toISOString();
+    ({error}=await sb.from('library_items').update(p).eq('id',id));
+  }else{
+    const res=await sb.from('library_items').insert(p).select('id').single();
+    error=res.error;itemId=res.data?.id||null;
+  }
+  if(error){alert('保存できませんでした。');return}
+  try{
+    if(p.material_type==='score'){
+      await saveScoreContents(itemId);
+      await upsertPersonMaster(p.composer,p.composer_kana,'composer');
+      await upsertPersonMaster(p.lyricist,p.lyricist_kana,'lyricist');
+    }
+  }catch(err){console.error(err);alert('資料は保存しましたが、収録曲の保存に失敗しました。');}
+  $('editorCard').classList.add('hidden');$('barcodeInput').value='';$('lookupMessage').textContent='保存しました。';await loadLibrary()
+});
+
+async function deleteCurrentItem(){
+  const id=$('itemId').value;
+  if(!id)return;
+
+  const item=library.find(x=>x.id===id);
+  const title=item?.title||'この資料';
+
+  const ok=confirm(`「${title}」を削除します。\n\nこの操作は取り消せません。削除してよろしいですか？`);
+  if(!ok)return;
+
+  const ok2=confirm('本当に削除しますか？\n登録データは元に戻せません。');
+  if(!ok2)return;
+
+  const btn=$('deleteItemBtn');
+  btn.disabled=true;
+  btn.textContent='削除しています…';
+
+  try{
+    const {error}=await sb.from('library_items').delete().eq('id',id);
+    if(error)throw error;
+
+    $('editorCard').classList.add('hidden');
+    $('lookupMessage').textContent='削除しました。';
+    showToast('資料を削除しました');
+    await loadPeopleMaster();await loadLibrary();
+  }catch(err){
+    console.error(err);
+    alert('削除できませんでした。Supabaseの削除権限を確認してください。');
+  }finally{
+    btn.disabled=false;
+    btn.textContent='この資料を削除';
+  }
+}
+
+function formPayload(){
+  const score=$('fMaterialType').value==='score';
+  if(score){
+    const isbn=$('fIsbn').value.replace(/[\s-]/g,'')||null;
+    return{barcode:isbn,material_type:'score',media_type:'楽譜',title:$('fScoreTitle').value.trim(),title_kana:null,artist:$('fScoreComposer').value.trim()||null,artist_kana:$('fComposerKana').value.trim()||null,composer:$('fScoreComposer').value.trim()||null,composer_kana:$('fComposerKana').value.trim()||null,lyricist:$('fLyricist').value.trim()||null,lyricist_kana:$('fLyricistKana').value.trim()||null,publisher:$('fPublisher').value.trim()||null,label:null,isbn,ismn:$('fIsmn').value.trim()||null,score_format:$('fScoreFormat').value||null,voicing_tags:selectedTagsFromHidden('fVoicingTags'),instrumentation_tags:selectedTagsFromHidden('fInstrumentationTags'),language_tags:selectedTagsFromHidden('fLanguageTags'),description:$('fDescription').value.trim()||null,notes:$('fScoreNotes').value.trim()||null,playlist:parseScoreContents($('fScoreContents').value).map(x=>x.title),genre:null,location:null,quantity:1,tags:[],needs_review:$('fNeedsReview').checked,cover_url:$('fCoverUrl').value||null,source_name:$('fSourceName').value||null,source_url:$('fSourceUrl').value||null,books_genre_id:$('fBooksGenreId').value||null,raw_source:(()=>{try{return $('fRawSource').value?JSON.parse($('fRawSource').value):null}catch{return null}})(),operator_name:operatorName};
+  }
+  return{barcode:$('fBarcode').value.trim()||null,material_type:'media',media_type:$('fMediaType').value,title:$('fTitle').value.trim(),title_kana:$('fTitleKana').value.trim()||null,artist:$('fArtist').value.trim()||null,artist_kana:$('fArtistKana').value.trim()||null,release_year:Number($('fYear').value)||null,release_date_text:$('fReleaseDateText').value.trim()||null,label:$('fLabel').value.trim()||null,catalog_no:$('fCatalogNo').value.trim()||null,disc_count:Number($('fDiscCount').value)||1,album_type:$('fAlbumType').value.trim()||null,composer:$('fComposer').value.trim()||null,conductor:$('fConductor').value.trim()||null,performers:$('fPerformers').value.trim()||null,ensemble:$('fEnsemble').value.trim()||null,genre:$('fGenre').value||null,location:$('fLocation').value.trim()||null,quantity:Number($('fQuantity').value)||1,playlist:$('fPlaylist').value.split(/\n+/).map(x=>x.trim()).filter(Boolean),tags:$('fTags').value.split(';').map(x=>x.trim()).filter(Boolean),notes:$('fNotes').value.trim()||null,needs_review:$('fNeedsReview').checked,cover_url:$('fCoverUrl').value||null,source_name:$('fSourceName').value||null,source_url:$('fSourceUrl').value||null,books_genre_id:$('fBooksGenreId').value||null,raw_source:(()=>{try{return $('fRawSource').value?JSON.parse($('fRawSource').value):null}catch{return null}})(),operator_name:operatorName};
+}
+
+function updateCoverPreview(url,sourceName,sourceUrl){
+  const wrap=$('coverPreviewWrap');
+  const img=$('coverPreview');
+  if(!url){
+    wrap.classList.add('hidden');
+    img.removeAttribute('src');
+    return;
+  }
+  img.src=url;
+  $('coverSourceTitle').textContent=sourceName?`取得元：${sourceName}`:'ジャケット画像';
+  $('coverSourceText').textContent=sourceUrl?'外部データベースの情報を使用しています。':'';
+  wrap.classList.remove('hidden');
+}
+
+
+function resultInsideScannerTarget(result){
+  try{
+    const pts=result?.getResultPoints?.()||[];
+    if(!pts.length)return true; // Some formats/readers do not expose points.
+    const video=$('scannerVideo');
+    const vw=video.videoWidth||video.clientWidth;
+    const vh=video.videoHeight||video.clientHeight;
+    if(!vw||!vh)return false;
+
+    const xs=pts.map(p=>typeof p.getX==="function"?p.getX():p.x).filter(Number.isFinite);
+    const ys=pts.map(p=>typeof p.getY==="function"?p.getY():p.y).filter(Number.isFinite);
+    if(!xs.length||!ys.length)return false;
+
+    const cx=(Math.min(...xs)+Math.max(...xs))/2;
+    const cy=(Math.min(...ys)+Math.max(...ys))/2;
+
+    // Must match the visible guide: x 12–88%, y 38–62%.
+    return cx>=vw*.12 && cx<=vw*.88 && cy>=vh*.38 && cy<=vh*.62;
+  }catch{
+    return false;
+  }
+}
+async function startScanner(){$('scannerPanel').classList.remove('hidden');$('lookupMessage').textContent='カメラを起動しています…';try{scanner=new ZXing.BrowserMultiFormatReader();const constraints={audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}};await scanner.decodeFromConstraints(constraints,'scannerVideo',async result=>{if(result&&resultInsideScannerTarget(result)){const code=result.getText();stopScanner();$('barcodeInput').value=code;$('lookupMessage').textContent=`バーコードを読み取りました：${code}`;await lookupBarcode(code)}});$('lookupMessage').textContent='バーコードを画面内に入れてください。'}catch(error){console.error(error);$('lookupMessage').textContent='カメラを起動できませんでした。Safariのカメラ権限を確認してください。'}}function stopScanner(){try{scanner?.reset()}catch{}scanner=null;$('scannerPanel').classList.add('hidden')}
+$('checkUpdateBtn').addEventListener('click',async()=>{closeSettings();await checkForUpdate(true)});$('updateNowBtn').addEventListener('click',forceAppUpdate);async function checkForUpdate(show){try{const r=await fetch(`${VERSION_URL}?t=${Date.now()}`,{cache:'no-store'});if(!r.ok)throw new Error(r.status);const info=await r.json(),latest=info.version;if(compareVersions(latest,APP_VERSION)>0){$('updateBannerTitle').textContent=`新しいバージョン v${latest} があります`;$('updateBannerText').textContent=info.summary||'最新版に更新できます。';$('updateBanner').classList.remove('hidden');if(show)showToast(`v${latest} に更新できます`)}else{$('updateBanner').classList.add('hidden');if(show)showToast('現在のバージョンは最新です')}}catch(e){if(show)showToast('更新情報を確認できませんでした')}}function compareVersions(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number),l=Math.max(pa.length,pb.length);for(let i=0;i<l;i++){const av=pa[i]||0,bv=pb[i]||0;if(av>bv)return 1;if(av<bv)return-1}return 0}async function forceAppUpdate(){showToast('最新版を読み込んでいます…');try{if('serviceWorker'in navigator){for(const r of await navigator.serviceWorker.getRegistrations())await r.unregister()}if('caches'in window){for(const k of await caches.keys())await caches.delete(k)}}catch{}const u=new URL(location.href);u.searchParams.set('update',Date.now());location.replace(u.toString())}
+$('showHistoryBtn').addEventListener('click',async()=>{closeSettings();await showUpdateHistory()});$('closeHistoryBtn').addEventListener('click',()=>$('historyModal').classList.add('hidden'));async function showUpdateHistory(){const c=$('historyList');c.innerHTML='<p class="muted">読み込んでいます…</p>';$('historyModal').classList.remove('hidden');try{const r=await fetch(`${HISTORY_URL}?t=${Date.now()}`,{cache:'no-store'});if(!r.ok)throw new Error(r.status);const data=await r.json();c.innerHTML='';data.forEach(e=>{const s=document.createElement('section');s.className='history-entry';const h=document.createElement('h3');h.textContent=`v${e.version} — ${e.date}`;s.appendChild(h);if(e.summary){const p=document.createElement('p');p.textContent=e.summary;s.appendChild(p)}if(e.changes?.length){const ul=document.createElement('ul');e.changes.forEach(x=>{const li=document.createElement('li');li.textContent=x;ul.appendChild(li)});s.appendChild(ul)}c.appendChild(s)})}catch{c.innerHTML='<p class="muted">アップデート履歴を読み込めませんでした。</p>'}}function showToast(m){const t=$('toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>t.classList.add('hidden'),2500)}
+$('diagnoseSearchBtn').addEventListener('click',async()=>{
+  closeSettings();
+  showToast('検索サービスを確認しています…');
+  try{
+    const {data,error}=await sb.functions.invoke('lookup-media',{body:{diagnostic:true}});
+    if(error)throw error;
+    const lines=(data.providers||[]).map(x=>`${x.available?'✓':'－'} ${x.name}`).join('\n');
+    alert(`検索サービス診断\n\n${lines}\n\n✓：利用可能\n－：追加設定で利用可能`);
+  }catch(e){
+    console.error(e);
+    alert('検索サービスに接続できませんでした。\nSupabase Edge Function「lookup-media」の設定を確認してください。');
+  }
+});
+
+
+$('providerSettingsBtn').addEventListener('click',async()=>{closeSettings();await openProviderSettings()});
+$('closeProviderModalBtn').addEventListener('click',()=>{$('providerModal').classList.add('hidden')});
+$('enableRecommendedBtn').addEventListener('click',()=>{providerSettings={rakuten:true,musicbrainz:true,discogs:true,cdstub:true,upcitemdb:false};saveProviderSettings();renderProviderSettings()});
+$('enableAllAvailableBtn').addEventListener('click',()=>{Object.keys(PROVIDER_DEFAULTS).forEach(k=>providerSettings[k]=providerAvailability[k]!==false);saveProviderSettings();renderProviderSettings()});
+async function getProviderStatus(){const {data,error}=await sb.functions.invoke('lookup-media',{body:{diagnostic:true}});if(error)throw error;providerAvailability={};(data.providers||[]).forEach(x=>providerAvailability[x.key]=!!x.available);return data.providers||[]}
+async function openProviderSettings(){$('providerModal').classList.remove('hidden');$('providerList').innerHTML='<p class="muted">検索サービスを確認しています…</p>';try{renderProviderSettings(await getProviderStatus())}catch(e){console.error(e);$('providerList').innerHTML='<p class="muted">検索サービスの状態を取得できませんでした。もう一度お試しください。</p>'}}
+function renderProviderSettings(providers){providers=providers||[{key:'rakuten',name:'楽天ブックス CD/DVD',available:providerAvailability.rakuten!==false},{key:'musicbrainz',name:'MusicBrainz',available:providerAvailability.musicbrainz!==false},{key:'discogs',name:'Discogs',available:providerAvailability.discogs!==false},{key:'cdstub',name:'MusicBrainz CDStub',available:providerAvailability.cdstub!==false},{key:'upcitemdb',name:'UPCitemdb',available:providerAvailability.upcitemdb!==false}];const list=$('providerList');list.innerHTML='';providers.forEach(p=>{const row=document.createElement('label');row.className=`provider-row ${p.available?'':'unavailable'}`;const main=document.createElement('div');main.className='provider-main';const title=document.createElement('strong');title.textContent=p.name;const sub=document.createElement('small');sub.textContent=p.available?'利用可能':'追加設定が必要です';main.append(title,sub);const toggle=document.createElement('input');toggle.type='checkbox';toggle.className='provider-switch';toggle.checked=!!providerSettings[p.key]&&!!p.available;toggle.disabled=!p.available;toggle.addEventListener('change',()=>{providerSettings[p.key]=toggle.checked;saveProviderSettings()});row.append(main,toggle);list.appendChild(row)})}
