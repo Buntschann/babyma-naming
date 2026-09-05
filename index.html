@@ -3,103 +3,495 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#111827">
+  <meta name="theme-color" content="#f6f1e9">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>文谷家ライブラリ</title>
-  <link rel="stylesheet" href="./styles.css?v=1.13.0">
-  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <meta name="apple-mobile-web-app-title" content="ベビま名付け">
+  <title>ベビま 名付けノート</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css?v=5.4.2">
 </head>
 <body>
-<header class="topbar"><div><h1>文谷家ライブラリ</h1><p>音源・映像・楽譜ライブラリ</p></div><button id="settingsBtn" class="ghost inverse hidden">設定</button></header>
-<main class="container">
-<section id="updateBanner" class="card update-banner hidden"><div><strong id="updateBannerTitle">新しいバージョンがあります</strong><p id="updateBannerText" class="muted"></p></div><button id="updateNowBtn" class="primary">今すぐ更新</button></section>
-<section id="setupNotice" class="card warning hidden"><h2>初期設定が必要です</h2><p><code>config.js</code> にSupabaseの情報を設定してください。</p></section>
-<section id="gateView" class="card"><h2>文谷家ライブラリ</h2><p class="muted">共通パスワードを入力してください。</p><form id="gateForm" class="stack"><label>共通パスワード<input id="sharedPassword" type="password" autocomplete="current-password" required></label><label class="checkbox"><input id="rememberSession" type="checkbox" checked>この端末で認証状態を保持する</label><button class="primary">ライブラリを開く</button></form><p id="gateMessage" class="message"></p></section>
-<section id="nameView" class="card hidden"><h2>入力者名の設定</h2><p class="muted">この端末で登録する人の名前を入力してください。あとから変更できます。</p><form id="nameForm" class="stack"><label>入力者名<input id="operatorNameInput" maxlength="50" placeholder="例：真" required></label><button class="primary">設定する</button></form></section>
-<section id="appView" class="hidden">
-<section class="operatorbar card"><div><span class="muted">入力者</span><strong id="operatorNameDisplay"></strong></div><button id="changeOperatorBtn" class="ghost">変更</button></section>
-<section class="stats-grid"><div class="stat"><span id="countAll">0</span><small>総所蔵数</small></div><div class="stat"><span id="countCD">0</span><small>CD</small></div><div class="stat"><span id="countVideo">0</span><small>DVD / BD</small></div><div class="stat"><span id="countScore">0</span><small>楽譜</small></div><div class="stat"><span id="countReview">0</span><small>未整理</small></div></section>
-<section class="card"><div class="row-between"><h2>新規登録</h2><button id="refreshLibraryBtn" class="ghost small">一覧を更新</button></div><label class="mt">登録する資料<select id="registrationMaterialType"><option value="media">音源・映像</option><option value="score">楽譜</option></select></label><div class="actions"><button id="scanBtn" class="primary">バーコードを読み取る</button><button id="metadataSearchBtn" class="secondary">品番・タイトルから検索</button><button id="manualBtn" class="secondary">手動で登録</button></div><div id="scannerPanel" class="hidden"><div class="scanner-stage">
-  <video id="scannerVideo" playsinline muted></video>
-  <div class="scanner-mask" aria-hidden="true">
-    <div class="scanner-target"></div>
+
+<section id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <div class="eyebrow">BABYMA NAMING NOTE</div>
+    <h1>ベビま 名付けノート</h1>
+    <p class="auth-copy">家族専用ま 🔐</p>
+
+    <label>メールアドレス
+      <input id="loginEmail" type="email" autocomplete="username" placeholder="name@example.com">
+    </label>
+
+    <label>パスワード
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••">
+    </label>
+
+    <button id="loginBtn" class="primary">ログイン</button>
+    <div id="loginMessage" class="login-message"></div>
   </div>
-</div>
-<p class="muted">中央の枠内に、読み取りたいバーコードだけを入れてください。</p><button id="stopScanBtn" class="ghost">読み取りを終了</button></div><label class="mt"><span id="barcodeLabelText">JAN / EANコード</span><div class="inline"><input id="barcodeInput" inputmode="numeric" placeholder="例：4988000000000"><button id="lookupBtn" class="secondary" type="button">検索</button></div></label><p id="lookupMessage" class="message"></p>
-    <div id="explorerStatus" class="explorer-status hidden">
-      <span class="explorer-icon">⌕</span>
-      <div><strong>Archive Explorer</strong><p id="explorerText">外部データベースを探索しています…</p></div>
+</section>
+
+<div id="appShell" hidden>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">BABYMA NAMING NOTE</div>
+      <h1>ベビま 名付けノート</h1>
     </div>
-    <p id="sourceMessage" class="source-message hidden"></p></section>
-<section id="editorCard" class="card hidden">
-<div class="row-between"><h2 id="editorTitle">登録内容を確認</h2><div class="editor-head-actions"><button id="enrichScoreBtn" type="button" class="secondary small hidden">外部DBから空欄を補完</button><span id="duplicateBadge" class="badge danger hidden">同一バーコードあり</span></div></div>
-<form id="itemForm"><input id="itemId" type="hidden"><input id="fMaterialType" type="hidden" value="media">
-<div id="coverPreviewWrap" class="cover-preview-wrap hidden"><img id="coverPreview" alt="表紙・ジャケット画像"><div><strong id="coverSourceTitle">外部データベースから取得</strong><p id="coverSourceText" class="muted"></p></div></div>
-<section id="mediaFormSection"><div class="form-grid">
-<label>バーコード<input id="fBarcode"></label><label>媒体<select id="fMediaType"><option>CD</option><option>DVD</option><option>Blu-ray</option><option>CD-R</option><option>DVD-R</option><option value="Other">その他</option></select></label>
-<label class="span2">タイトル<input id="fTitle"></label><label class="span2">アーティスト / 主演者<input id="fArtist"></label><label>タイトル（カナ）<input id="fTitleKana"></label><label>アーティスト（カナ）<input id="fArtistKana"></label>
-<label>発売年<input id="fYear" inputmode="numeric"></label><label>発売日（原表記）<input id="fReleaseDateText"></label><label>レーベル<input id="fLabel"></label><label>規格品番<input id="fCatalogNo"></label><label>枚数<input id="fDiscCount" type="number" min="1" value="1"></label><label>商品区分<input id="fAlbumType"></label>
-<label class="span2">作曲者<input id="fComposer"></label><label class="span2">指揮者<input id="fConductor"></label><label class="span2">演奏者 / ソリスト<input id="fPerformers"></label><label class="span2">団体<input id="fEnsemble"></label><label>ジャンル<select id="fGenre"><option value="">未設定</option><option>クラシック</option><option>吹奏楽</option><option>ジャズ</option><option>ボサノバ</option><option>合唱</option><option>オペラ・声楽</option><option>現代音楽</option><option>映画・舞台音楽</option><option>サウンドトラック</option><option>ポップス</option><option>ロック</option><option>歌謡曲・演歌</option><option>民族音楽・ワールド</option><option>落語</option><option>教材・資料</option><option>その他</option></select></label><label>収納場所<input id="fLocation"></label><label>所蔵数<input id="fQuantity" type="number" min="1" value="1"></label><label>入力者<input id="fOperator" readonly></label>
-<label class="span2">収録曲<textarea id="fPlaylist" rows="7" placeholder="1行に1曲"></textarea></label><label class="span2">タグ<input id="fTags" placeholder="「;」区切り"></label><label class="span2">メモ<textarea id="fNotes" rows="4"></textarea></label>
-</div></section>
-<section id="scoreFormSection" class="hidden"><div class="form-grid score-clean-form">
-<label class="span2">楽譜名<input id="fScoreTitle"></label>
-<label>作曲家名<input id="fScoreComposer"></label><label>作曲家名（読み）<input id="fComposerKana"><small class="muted">人物マスターに登録済みなら自動補完します</small></label>
-<label>作詞者名<input id="fLyricist"></label><label>作詞者名（読み）<input id="fLyricistKana"><small class="muted">人物マスターに登録済みなら自動補完します</small></label>
-<label class="span2">出版社名<input id="fPublisher"></label>
-<label>ISBN<input id="fIsbn" inputmode="numeric" placeholder="978..."></label><label>ISMN<input id="fIsmn" placeholder="979-0-..."></label>
-<label class="span2">楽譜種別<select id="fScoreFormat"><option value="">未設定</option><option>合唱譜</option><option>総譜</option><option>パート譜</option><option>ピアノ譜</option><option>ヴォーカルスコア</option><option>器楽譜</option><option>その他</option></select></label>
-<div class="tag-field span2"><span class="field-label">編成</span><div id="voicingTagPicker" class="tag-picker"></div><div class="tag-add-row"><input id="newVoicingTag" placeholder="新しい編成タグ"><button id="addVoicingTagBtn" type="button" class="ghost small">追加</button></div><input id="fVoicingTags" type="hidden"></div>
-<div class="tag-field span2"><span class="field-label">伴奏・楽器</span><div id="instrumentationTagPicker" class="tag-picker"></div><div class="tag-add-row"><input id="newInstrumentationTag" placeholder="新しい伴奏・楽器タグ"><button id="addInstrumentationTagBtn" type="button" class="ghost small">追加</button></div><input id="fInstrumentationTags" type="hidden"></div>
-<div class="tag-field span2"><span class="field-label">言語</span><div id="languageTagPicker" class="tag-picker"></div><div class="tag-add-row"><input id="newLanguageTag" placeholder="新しい言語タグ"><button id="addLanguageTagBtn" type="button" class="ghost small">追加</button></div><input id="fLanguageTags" type="hidden"></div>
-<label class="span2">収録曲名<textarea id="fScoreContents" rows="9" placeholder="1行に1曲。曲名だけでも保存できます"></textarea><small class="muted">詳細入力：曲名 | 作曲者 | 作詞者 | 編曲者 | ページ</small></label><div class="span2 score-content-tools"><span id="scoreContentCount" class="muted"></span></div>
-<label class="span2">解説<textarea id="fDescription" rows="6" placeholder="外部データベースに解説・内容注記があれば自動取得します"></textarea></label><label class="span2">備考<textarea id="fScoreNotes" rows="5" placeholder="手動メモ用"></textarea></label>
-</div></section>
-<input id="fCoverUrl" type="hidden"><input id="fSourceName" type="hidden"><input id="fSourceUrl" type="hidden"><input id="fBooksGenreId" type="hidden"><input id="fRawSource" type="hidden">
-<label class="checkbox"><input id="fNeedsReview" type="checkbox">後で詳細確認する</label><div class="actions"><button class="primary">保存</button><button id="deleteItemBtn" class="danger-button hidden" type="button">この資料を削除</button><button id="cancelEditBtn" class="ghost" type="button">閉じる</button></div>
-</form></section>
-<section class="card"><div class="row-between"><h2>ライブラリ</h2><button id="refreshBtn" class="ghost">更新</button></div><div class="filters"><select id="materialFilter"><option value="">すべての資料</option><option value="media">音源・映像</option><option value="score">楽譜</option></select><input id="searchInput" placeholder="タイトル、作曲者、出版社、ISBN、ISMN、規格品番などを検索"><select id="genreFilter"><option value="">すべてのジャンル</option><option>クラシック</option>
-<option>吹奏楽</option>
-<option>ジャズ</option>
-<option>ボサノバ</option>
-<option>合唱</option>
-<option>オペラ・声楽</option>
-<option>現代音楽</option>
-<option>映画・舞台音楽</option>
-<option>サウンドトラック</option>
-<option>ポップス</option>
-<option>ロック</option>
-<option>歌謡曲・演歌</option>
-<option>民族音楽・ワールド</option>
-<option>落語</option>
-<option>教材・資料</option>
-<option>その他</option></select><select id="reviewFilter"><option value="">整理状態：すべて</option><option value="true">未整理のみ</option><option value="false">整理済みのみ</option></select></div><div id="libraryList" class="library-list"></div></section>
-</section></main>
-<div id="settingsModal" class="modal hidden"><div class="modal-card"><div class="row-between"><h2>設定</h2><button id="closeSettingsBtn" class="ghost small">閉じる</button></div><div class="settings-list"><button id="changeNameInSettings" class="settings-row"><span>入力者名を変更</span><span>›</span></button><button id="checkUpdateBtn" class="settings-row"><span>アプリを更新</span><span>›</span></button><button id="showHistoryBtn" class="settings-row"><span>アップデート履歴</span><span>›</span></button>
-    <button id="diagnoseSearchBtn" class="settings-row"><span>検索サービス診断</span><span>›</span></button>
-<button id="providerSettingsBtn" class="settings-row"><span>検索対象サービス</span><span>›</span></button><div class="settings-row static"><span>現在のバージョン</span><strong id="currentVersionText">v1.13.0</strong></div><button id="logoutBtn" class="settings-row danger-text"><span>ログアウト</span><span>›</span></button></div></div></div>
-<div id="metadataSearchModal" class="modal hidden"><div class="modal-card metadata-search-card">
-<div class="row-between"><h2>品番・タイトルから検索</h2><button id="closeMetadataSearchBtn" class="ghost small">閉じる</button></div>
-<p class="muted">バーコードがない資料を外部データベースから検索します。楽譜ではISBN・ISMN・タイトル・作曲者・出版社も利用できます。</p>
-<form id="metadataSearchForm" class="form-grid metadata-search-form"><label class="span2">資料種別<select id="msMaterialType"><option value="media">音源・映像</option><option value="score">楽譜</option></select></label>
-  <label>規格品番<input id="msCatalogNo" placeholder="例：UCCG-45001"></label><label class="score-search-field hidden">ISBN<input id="msIsbn" placeholder="978..."></label><label class="score-search-field hidden">ISMN<input id="msIsmn" placeholder="979-0-..."></label>
-  <label>発売年<input id="msYear" inputmode="numeric" placeholder="例：1998"></label>
-  <label class="span2">タイトル<input id="msTitle" placeholder="曲名ではなくCD・アルバムのタイトル"></label>
-  <label class="span2">アーティスト / 作曲者 / 著者<input id="msArtist" placeholder="例：Miles Davis、Mozart"></label>
-  <label class="span2">レーベル / 出版社<input id="msLabel" placeholder="例：Deutsche Grammophon"></label>
-  <div class="actions span2"><button class="primary" type="submit">外部データベースを検索</button><button id="clearMetadataSearchBtn" class="ghost" type="button">入力をクリア</button></div>
-</form>
-<div id="metadataSearchStatus" class="message"></div>
-<div id="metadataSearchResults" class="candidate-list"></div>
-</div></div>
-<div id="providerModal" class="modal hidden"><div class="modal-card">
-<div class="row-between"><h2>検索対象サービス</h2><button id="closeProviderModalBtn" class="ghost small">閉じる</button></div>
-<p class="muted">この端末で検索に使うサービスを選択できます。利用不可のサービスは有効にできません。</p>
-<div id="providerList" class="provider-list"></div>
-<div class="provider-actions"><button id="enableRecommendedBtn" class="secondary">おすすめ設定</button><button id="enableAllAvailableBtn" class="secondary">利用可能なものをすべてON</button></div>
-</div></div>
-<div id="historyModal" class="modal hidden"><div class="modal-card history-card"><div class="row-between"><h2>アップデート履歴</h2><button id="closeHistoryBtn" class="ghost small">閉じる</button></div><div id="historyList"></div></div></div><div id="toast" class="toast hidden"></div>
-<template id="itemTemplate"><article class="library-item"><img class="item-cover hidden" alt=""><div class="item-content"><div><div class="pills"><span class="media-pill"></span><span class="genre-pill"></span><span class="review-pill hidden">未整理</span></div><h3 class="item-title"></h3><p class="item-artist"></p><p class="item-meta"></p><p class="item-location"></p><p class="item-operator"></p></div></div><button class="edit-item ghost">編集</button></article></template>
-<script src="./config.js?v=1.13.0"></script><script src="./app.js?v=1.13.0"></script>
-</body></html>
+    <div class="top-actions">
+      <button id="updatesBtn" class="updatebtn">更新履歴</button>
+      <button id="refreshAppBtn" class="refreshbtn" title="最新版を確認">↻ 更新</button>
+      <button id="settingsBtn" class="iconbtn">⚙︎</button>
+      <button id="logoutBtn" class="logoutbtn">ログアウト</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero card" data-app-tab="names">
+      <div>
+        <div class="label">苗字と並べて確認</div>
+        <div id="previewName" class="preview-name">文谷　——</div>
+        <div id="previewReading" class="preview-reading">ぶんや　——</div>
+      </div>
+      <span id="syncBadge" class="badge">共有同期</span>
+    </section>
+
+    <section class="card" data-app-tab="names">
+      <h2>候補を追加</h2>
+      <div class="form-grid">
+        <label>名前<input id="nameInput" maxlength="8" placeholder="例：凪"></label>
+        <label>読み<input id="readingInput" maxlength="16" placeholder="例：なぎ"></label>
+        <label>画数
+          <div class="stroke-input-wrap">
+            <input id="strokesInput" inputmode="numeric" placeholder="名前から自動取得" readonly>
+            <button id="manualStrokeBtn" type="button" class="mini-btn">手入力</button>
+          </div>
+          <span id="strokeStatus" class="field-status">名前を入力すると自動取得しま（漢字・かな対応）</span>
+        </label>
+        <label>タグ
+          <input id="tagsInput" type="hidden">
+          <span class="field-status">過去に使ったタグから選択しま</span>
+          <div id="tagSuggestions" class="tag-suggestions tag-picker"></div>
+          <div class="new-tag-row">
+            <input id="newTagInput" placeholder="新しいタグを追加">
+            <button id="addNewTagBtn" type="button" class="mini-btn">追加</button>
+          </div>
+        </label>
+        <label>漢字の意味<input id="meaningInput" placeholder="例：風がやみ、波が静まる"></label>
+        <label>名乗り読み<input id="nanoriInput" placeholder="例：なぎ"></label>
+        <label class="wide">書き順メモ<input id="strokeOrderInput" maxlength="160" placeholder="例：参考URL／書き順メモ"></label>
+        <label class="wide">メモ<input id="memoInput" maxlength="160" placeholder="意味・印象・由来など"></label>
+      </div>
+      <button id="addBtn" class="primary">候補に追加</button>
+    </section>
+
+
+    <section class="card kanji-stock-section" data-app-tab="stock">
+      <div class="section-head">
+        <div><h2>漢字ストック</h2><div class="hint">まだ名前候補ではないけど、いいと思った漢字を一旦キープしま。</div></div>
+        <span id="kanjiStockCount" class="badge">0字</span>
+      </div>
+      <div class="kanji-stock-add">
+        <label>漢字<input id="kanjiStockInput" maxlength="1" placeholder="例：凪"></label>
+        <label class="grow">自分のメモ<input id="kanjiStockMemo" maxlength="120" placeholder="例：響きが好き、意味がいい"></label>
+        <button id="addKanjiStockBtn" class="secondary stock-add-btn">キープ</button>
+      </div>
+      <div id="kanjiStockList" class="kanji-stock-list"></div>
+      <div id="kanjiStockEmpty" class="stock-empty">まだストックがなま。</div>
+    </section>
+
+    <section class="card kanji-dictionary-section" data-app-tab="dictionary">
+      <div class="section-head">
+        <div><h2>使える漢字辞典</h2><div class="hint">常用漢字・人名用漢字から探して、そのままストックできま。</div></div>
+        <span id="dictionaryCount" class="badge">読込中</span>
+      </div>
+      <div class="dictionary-controls">
+        <label class="grow">漢字検索<input id="dictionarySearch" maxlength="1" placeholder="漢字1文字"></label>
+        <label>種類<select id="dictionaryTypeFilter"><option value="all">すべて</option><option value="joyo">常用漢字</option><option value="jinmeiyo">人名用漢字</option></select></label>
+        <label>並び順
+          <select id="dictionarySort">
+            <option value="type">種類順</option>
+            <option value="stroke_asc">画数（少→多）</option>
+            <option value="stroke_desc">画数（多→少）</option>
+            <option value="radical">部首順</option>
+            <option value="grade">学年順</option>
+            <option value="frequency">使用頻度順</option>
+            <option value="jlpt">JLPT順</option>
+            <option value="char">文字順</option>
+          </select>
+        </label>
+      </div>
+      <div id="dictionaryStatus" class="field-status">一覧を読み込み中…</div>
+      <div class="dictionary-legend">
+        <span class="legend-stock">★ ストック済み</span>
+        <span class="legend-name">名 名前候補に使用中</span>
+        <span class="legend-both">★名 両方</span>
+      </div>
+      <div id="dictionarySortNote" class="field-status"></div>
+      <div id="dictionaryGrid" class="dictionary-grid"></div>
+      <div id="dictionaryDetail" class="dictionary-detail" hidden>
+        <div class="dictionary-detail-head"><div id="dictionaryDetailChar" class="dictionary-detail-char"></div><button id="closeDictionaryDetail" class="mini-btn">閉じる</button></div>
+        <div id="dictionaryDetailType" class="dictionary-type-badges"></div>
+        <div id="dictionaryDetailInfo" class="dictionary-detail-info"></div>
+        <button id="dictionaryAddStockBtn" class="primary">この漢字をストック</button>
+      </div>
+    </section>
+
+    <section class="controls card" data-app-tab="names">
+      <div class="control-row">
+        <label class="grow">検索<input id="searchInput" placeholder="名前・読み・メモ・タグ・提案者・意味"></label>
+        <label>状態
+          <select id="statusFilter">
+            <option value="all">すべて</option>
+            <option value="candidate">候補</option>
+            <option value="hold">保留</option>
+            <option value="rejected">却下</option>
+          </select>
+        </label>
+        <label>並び順
+          <select id="sortSelect">
+            <option value="created_desc">追加順（新しい順）</option>
+            <option value="created_asc">追加順（古い順）</option>
+            <option value="reading_asc">読み（あ→ん）</option>
+            <option value="reading_desc">読み（ん→あ）</option>
+            <option value="strokes_asc">画数（少→多）</option>
+            <option value="strokes_desc">画数（多→少）</option>
+            <option value="chars_asc">文字数（少→多）</option>
+            <option value="chars_desc">文字数（多→少）</option>
+            <option value="likes_desc">★合計（多→少）</option>
+            <option value="proposer_asc">提案者</option>
+          </select>
+        </label>
+      </div>
+      <div id="stats" class="stats"></div>
+    </section>
+
+    <section class="card compare-box" data-app-tab="names">
+      <div class="compare-head">
+        <div><h2>比較</h2><div class="hint">候補カードの「比較に追加」で最大4件まで並べられま。</div></div>
+        <button id="clearCompareBtn" class="secondary">クリア</button>
+      </div>
+      <div id="compareGrid" class="compare-grid"></div>
+    </section>
+
+    <section data-app-tab="names">
+      <div id="candidateList" class="candidate-list"></div>
+      <div id="emptyState" class="empty card">
+        <div class="empty-emoji">👶</div>
+        <div>条件に合う候補がなま。</div>
+      </div>
+    </section>
+
+    <section class="card history-card" data-app-tab="names">
+      <details>
+        <summary>履歴を見る <span id="historyCount"></span></summary>
+        <p class="hint">自分が作った履歴だけ削除できま。</p>
+        <div id="historyList" class="history-list"></div>
+      </details>
+    </section>
+  </main>
+  <nav class="bottom-tabbar" aria-label="主な機能">
+    <button class="bottom-tab active" data-tab="names"><span class="tab-icon">👶</span><span>名前候補</span></button>
+    <button class="bottom-tab" data-tab="stock"><span class="tab-icon">★</span><span>漢字ストック</span></button>
+    <button class="bottom-tab" data-tab="dictionary"><span class="tab-icon">字</span><span>漢字辞典</span></button>
+  </nav>
+</div>
+
+
+<dialog id="updatesDialog">
+  <div class="dialog-card updates-dialog-card">
+    <div class="dialog-head">
+      <div>
+        <div class="eyebrow">BABYMA NAMING NOTE</div>
+        <h2>アップデート履歴</h2>
+      </div>
+      <button id="closeUpdatesBtn" class="iconbtn">×</button>
+    </div>
+
+    <div class="current-version">現在のバージョン <strong>v5.4.2</strong></div>
+
+    <div class="update-history">
+      <section class="update-entry latest">
+        <div class="version-line"><strong>v5.4.2</strong><span>最新</span></div>
+        <ul>
+          <li>漢字辞典で「ストック済み」「名前候補に使用中」「両方」を背景色で区別</li>
+          <li>一覧に ★ / 名 / ★名 の状態マークを追加</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.4.1</strong></div>
+        <ul>
+          <li>v5.4でログインボタンが反応しなくなるJavaScript構文エラーを修正</li>
+          <li>部首順データ解析の正規表現を修正</li>
+          <li>辞典UIの一部要素がなくてもログイン処理が止まらないよう防御を追加</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.4</strong></div>
+        <ul>
+          <li>「名前候補・漢字ストック・漢字辞典」を下部タブで3画面に整理</li>
+          <li>漢字辞典に画数順・部首順・学年順・使用頻度順・JLPT順を追加</li>
+          <li>辞典の詳細情報を強化</li>
+          <li>重複していた漢字ストック表示を整理</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.3.1</strong></div>
+        <ul>
+          <li>v5.3以前の漢字ストックメモを「なえちゃメモ」として復元</li>
+          <li>旧memo列が残っている場合も自動表示する互換処理を追加</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.3</strong></div>
+        <ul>
+          <li>漢字ストックのメモを2人別・再編集可能に</li>
+          <li>常用漢字／人名用漢字／要確認をストックにも表示</li>
+          <li>要確認漢字でも候補・ストック登録可能</li>
+          <li>「使える漢字辞典」を追加</li>
+          <li>辞典から直接ストック可能</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.2.1</strong></div>
+        <ul>
+          <li>ログインボタンが反応しなくなる不具合を修正</li>
+          <li>更新ボタンがHTMLにない場合でもJavaScriptが停止しないよう改善</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.2</strong></div>
+        <ul>
+          <li>ホーム画面アプリ内に「更新」ボタンを追加</li>
+          <li>最新版をキャッシュ無視で確認</li>
+          <li>新バージョン公開時はキャッシュ削除＋強制再読み込み</li>
+          <li>アプリ起動時にも最新版の有無を確認</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.1</strong></div>
+        <ul>
+          <li>気になる漢字を一旦キープできる「漢字ストック」を追加</li>
+          <li>画数・読み・意味を自動表示</li>
+          <li>メモ・キープした人・日時を保存</li>
+          <li>ストック漢字を名前候補入力欄へ送れるように</li>
+          <li>まこしゃ・なえちゃで共有</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.0</strong></div>
+        <ul>
+          <li>子の名に使える漢字か自動チェック</li>
+          <li>漢字ごとの画数・音読み・訓読み・名乗り読み・辞書意味を自動表示</li>
+          <li>まこしゃ・なえちゃ別の5段階評価を追加</li>
+          <li>候補カードから、その候補だけの変更履歴を確認可能に</li>
+          <li>「○○くん」「○○さん」「文谷○○です」など呼び方プレビューを追加</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v4.2</strong></div>
+        <ul>
+          <li>アプリ内に「アップデート履歴」を追加</li>
+          <li>これまでの機能追加・修正内容を一覧で確認可能に</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v4.1</strong></div>
+        <ul>
+          <li>ひらがな・カタカナ・小書きかな・濁音・半濁音・「ー」の画数自動取得に対応</li>
+          <li>かなは姓名判断用の画数表を採用</li>
+          <li>タグを「過去の一覧から選択」が基本のUIに変更</li>
+          <li>新しいタグは手動で追加可能</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v4.0</strong></div>
+        <ul>
+          <li>漢字の画数を自動取得</li>
+          <li>追加済み候補の編集機能を追加</li>
+          <li>過去に使ったタグを再利用できるように</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v3.2</strong></div>
+        <ul>
+          <li>Safari / GitHub Pagesのキャッシュ対策を追加</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v3.1</strong></div>
+        <ul>
+          <li>ログイン後もログイン画面が残る表示不具合を修正</li>
+          <li>ログイン直後の一時的なJWT時刻エラーを自動再試行するよう改善</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v3.0</strong></div>
+        <ul>
+          <li>Supabase Authによるメールアドレス＋パスワード認証を追加</li>
+          <li>まこしゃ・なえちゃだけが共有データへアクセスできる構成に変更</li>
+          <li>ログアウト機能を追加</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v2.0</strong></div>
+        <ul>
+          <li>候補比較（最大4件）を追加</li>
+          <li>「候補・保留・却下」の状態管理を追加</li>
+          <li>まこしゃ★ / なえちゃ★ を別々に管理</li>
+          <li>漢字の意味・名乗り読み・書き順メモを追加</li>
+        </ul>
+      </section>
+
+      <section class="update-entry">
+        <div class="version-line"><strong>v1.0</strong></div>
+        <ul>
+          <li>「文谷」と並べた名前候補表示</li>
+          <li>読み・画数・文字数などでソート</li>
+          <li>提案者と日時つき履歴を記録</li>
+          <li>自分の履歴だけ削除可能</li>
+          <li>タグ・コメント・お気に入り機能を追加</li>
+          <li>Supabaseによる2人での共有に対応</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="settingsDialog">
+  <div class="dialog-card">
+    <div class="dialog-head"><h2>あなたの設定</h2><button id="closeSettingsBtn" class="iconbtn">×</button></div>
+    <label>表示名<input id="actorInput" placeholder="まこしゃ / なえちゃ"></label>
+    <label>この端末で評価する人
+      <select id="roleInput">
+        <option value="mako">まこしゃ</option>
+        <option value="nae">なえちゃ</option>
+      </select>
+    </label>
+    <div class="hint">5段階評価は、ここで選んだ本人の欄だけ編集できま。</div>
+    <div id="signedInAs" class="signed-in-as"></div>
+    <button id="saveSettingsBtn" class="primary">保存</button>
+  </div>
+</dialog>
+
+
+<dialog id="editDialog">
+  <div class="dialog-card">
+    <div class="dialog-head"><h2>候補を編集</h2><button id="closeEditBtn" class="iconbtn">×</button></div>
+    <div class="form-grid">
+      <label>名前<input id="editName" maxlength="8"></label>
+      <label>読み<input id="editReading" maxlength="16"></label>
+      <label>画数
+        <div class="stroke-input-wrap">
+          <input id="editStrokes" inputmode="numeric" readonly>
+          <button id="editManualStrokeBtn" type="button" class="mini-btn">手入力</button>
+        </div>
+        <span id="editStrokeStatus" class="field-status"></span>
+      </label>
+      <label>タグ
+        <input id="editTags" type="hidden">
+        <span class="field-status">過去に使ったタグから選択しま</span>
+        <div id="editTagSuggestions" class="tag-suggestions tag-picker"></div>
+        <div class="new-tag-row">
+          <input id="editNewTagInput" placeholder="新しいタグを追加">
+          <button id="editAddNewTagBtn" type="button" class="mini-btn">追加</button>
+        </div>
+      </label>
+      <label>漢字の意味<input id="editMeaning"></label>
+      <label>名乗り読み<input id="editNanori"></label>
+      <label class="wide">書き順メモ<input id="editStrokeOrder" maxlength="160"></label>
+      <label class="wide">メモ<input id="editMemo" maxlength="160"></label>
+    </div>
+    <button id="saveEditBtn" class="primary">変更を保存</button>
+  </div>
+</dialog>
+
+<template id="candidateTemplate">
+  <article class="candidate card">
+    <div class="full-name"></div>
+    <div class="full-reading"></div>
+    <div class="chips"></div>
+
+    <div class="legal-check">
+      <span class="legal-status checking">使用可能文字を確認中…</span>
+      <span class="legal-note">※参考判定。出生届前に法務省の最新情報でも確認してま。</span>
+    </div>
+
+    <div class="call-preview">
+      <span class="info-label">呼び方プレビュー</span>
+      <div class="call-chips"></div>
+    </div>
+
+    <details class="auto-kanji-details">
+      <summary>漢字情報を自動表示</summary>
+      <div class="kanji-auto-info">読み込み中…</div>
+    </details>
+
+    <details class="rating-details">
+      <summary>2人の5段階評価</summary>
+      <div class="rating-table">
+        <div class="rating-head"><span>項目</span><strong>まこしゃ</strong><strong>なえちゃ</strong></div>
+        <div class="rating-row" data-key="sound"><span>響き</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+        <div class="rating-row" data-key="surname"><span>苗字との相性</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+        <div class="rating-row" data-key="meaning"><span>意味</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+        <div class="rating-row" data-key="writing"><span>書きやすさ</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+        <div class="rating-row" data-key="calling"><span>呼びやすさ</span><select class="rating-mako"></select><select class="rating-nae"></select></div>
+      </div>
+    </details>
+
+    <details class="candidate-history-details">
+      <summary>この候補の履歴</summary>
+      <div class="candidate-history"></div>
+    </details>
+
+    <div class="status-line">
+      <label>状態
+        <select class="status-select">
+          <option value="candidate">候補</option>
+          <option value="hold">保留</option>
+          <option value="rejected">却下</option>
+        </select>
+      </label>
+    </div>
+    <div class="vote-row">
+      <button class="vote vote-mako">☆ まこしゃ</button>
+      <button class="vote vote-nae">☆ なえちゃ</button>
+    </div>
+    <p class="memo"></p>
+    <div class="info-grid">
+      <div><span class="info-label">漢字の意味</span><div class="meaning"></div></div>
+      <div><span class="info-label">名乗り読み</span><div class="nanori"></div></div>
+      <div class="wide-info"><span class="info-label">書き順</span><div class="stroke-order"></div></div>
+    </div>
+    <div class="comment-area">
+      <div class="comment-list"></div>
+      <div class="comment-compose">
+        <input class="comment-input" maxlength="140" placeholder="コメントを書く">
+        <button class="comment-add secondary">送信</button>
+      </div>
+    </div>
+    <div class="candidate-foot">
+      <time class="created"></time>
+      <div class="actions">
+        <button class="compare-add secondary">比較に追加</button>
+        <button class="edit secondary">編集</button>
+        <button class="delete secondary">削除</button>
+      </div>
+    </div>
+  </article>
+</template>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="./config.js?v=5.4.2"></script>
+<script src="./app.js?v=5.4.2"></script>
+<div id="appToast" class="app-toast" hidden></div>
+</body>
+</html>
