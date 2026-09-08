@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.5.1";
+const APP_VERSION="5.5.2";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -291,13 +291,96 @@ function gradeLabel(g){
 function kataToHira(str){return (str||"").replace(/[\u30a1-\u30f6]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0x60))}
 function cleanReading(r){if(!r)return "";let x=kataToHira(r).replace(/[.\-]/g,"").replace(/[()（）\s]/g,"");return x.replace(/[^ぁ-ゖー]/g,"")}
 function randomPick(arr){return arr[Math.floor(Math.random()*arr.length)]}
-function readingCandidates(d){
- const names=(d?.name_readings||[]).map(cleanReading).filter(Boolean);
- const kun=(d?.kun_readings||[]).map(cleanReading).filter(Boolean);
- const on=(d?.on_readings||[]).map(cleanReading).filter(Boolean);
- if(names.length&&Math.random()<0.72)return names;
- if(kun.length&&Math.random()<0.62)return kun;
- return on.length?on:(kun.length?kun:names);
+
+function hiraMoraLen(s){
+ // Rough mora count: small ゃゅょぁぃぅぇぉゎ do not add a full mora.
+ const x=cleanReading(s);
+ let n=0;
+ for(const ch of [...x]){
+   if("ゃゅょぁぃぅぇぉゎ".includes(ch))continue;
+   n++;
+ }
+ return n;
+}
+function uniqueReadings(arr){
+ return [...new Set((arr||[]).map(cleanReading).filter(Boolean))];
+}
+function readingPoolForKanji(d,len){
+ const names=uniqueReadings(d?.name_readings||[]);
+ const kun=uniqueReadings(d?.kun_readings||[]);
+ const on=uniqueReadings(d?.on_readings||[]);
+ const result=[];
+
+ const add=(arr,kind,baseScore)=>{
+   for(const r of arr){
+     const mora=hiraMoraLen(r);
+     if(!mora||mora>5)continue;
+     let score=baseScore;
+     if(mora===1||mora===2)score+=1.2;
+     if(mora>=4)score-=0.8;
+     result.push({reading:r,kind,score});
+   }
+ };
+
+ if(len===1){
+   // Single-kanji names often sound natural with nanori/kun readings.
+   add(names,"名乗り",5.0);
+   add(kun,"訓",4.1);
+   add(on,"音",2.8);
+ }else{
+   // Multi-kanji names: favor nanori and on readings; kun is fallback.
+   add(names,"名乗り",5.2);
+   add(on,"音",4.5);
+   add(kun,"訓",1.7);
+ }
+ return result.sort((a,b)=>b.score-a.score).slice(0,10);
+}
+function makeGachaReading(details,len){
+ const pools=details.map(d=>readingPoolForKanji(d,len));
+ // If a kanji has no usable reading at all, allow blank marker.
+ const normalized=pools.map(p=>p.length?p:[{reading:"?",kind:"不明",score:-5}]);
+
+ // Generate up to a manageable number of combinations.
+ let combos=[{parts:[],kinds:[],score:0}];
+ for(const pool of normalized){
+   const next=[];
+   for(const c of combos){
+     for(const item of pool.slice(0,6)){
+       next.push({
+         parts:[...c.parts,item.reading],
+         kinds:[...c.kinds,item.kind],
+         score:c.score+item.score
+       });
+     }
+   }
+   next.sort((a,b)=>b.score-a.score);
+   combos=next.slice(0,120);
+ }
+
+ // Add whole-name length preference.
+ const target=len===1?[1,4]:len===2?[3,6]:[4,8];
+ for(const c of combos){
+   const reading=c.parts.join("");
+   const mora=hiraMoraLen(reading);
+   c.reading=reading;
+   c.mora=mora;
+   if(mora>=target[0]&&mora<=target[1])c.score+=2.2;
+   else if(mora<target[0])c.score-=1.0;
+   else c.score-=(mora-target[1])*1.3;
+
+   // Multi-kanji all-kun chains are usually less name-like, penalize them.
+   if(len>=2&&c.kinds.every(k=>k==="訓"))c.score-=3.5;
+   // Reward combinations containing at least one nanori.
+   if(c.kinds.includes("名乗り"))c.score+=0.8;
+   // Reward all on/nanori for multi-kanji.
+   if(len>=2&&c.kinds.every(k=>k==="音"||k==="名乗り"))c.score+=1.2;
+  }
+
+ combos.sort((a,b)=>b.score-a.score);
+
+ // Keep a top band so the result remains random rather than deterministic.
+ const good=combos.filter(c=>c.score>=combos[0].score-2.6).slice(0,24);
+ return randomPick(good.length?good:combos);
 }
 async function spinNameGacha(){
  const nameEl=$("#gachaName"),readEl=$("#gachaReading"),breakEl=$("#gachaBreakdown"),spin=$("#spinGachaBtn");
@@ -310,17 +393,12 @@ async function spinNameGacha(){
    const len=requested==="random"?(1+Math.floor(Math.random()*3)):Number(requested);
    const chars=[];
    while(chars.length<len){const ch=randomPick(pool);if(!chars.includes(ch)||Math.random()<0.06)chars.push(ch)}
-   const details=await Promise.all(chars.map(getKanjiDetail)),parts=[];
-   for(let i=0;i<chars.length;i++){
-     const choices=readingCandidates(details[i]);
-     let r=choices.length?randomPick(choices):"";
-     if(!r)r=cleanReading((details[i]?.kun_readings||[])[0]||(details[i]?.on_readings||[])[0]||(details[i]?.name_readings||[])[0]||"");
-     parts.push(r||"?");
-   }
-   const reading=parts.join("");
-   state.gachaResult={name:chars.join(""),reading,chars,parts,details};
+   const details=await Promise.all(chars.map(getKanjiDetail));
+   const picked=makeGachaReading(details,len);
+   const parts=picked.parts,reading=picked.reading;
+   state.gachaResult={name:chars.join(""),reading,chars,parts,details,kinds:picked.kinds};
    nameEl.textContent=state.gachaResult.name;readEl.textContent=reading.includes("?")?"読み：？？？":`読み：${reading}`;
-   breakEl.innerHTML=chars.map((ch,i)=>`<span class="gacha-reading-chip">${esc(ch)} → ${esc(parts[i]||"?")}</span>`).join("");
+   breakEl.innerHTML=chars.map((ch,i)=>`<span class="gacha-reading-chip">${esc(ch)} → ${esc(parts[i]||"?")} <small>${esc(state.gachaResult.kinds?.[i]||"")}</small></span>`).join("");
    $("#gachaToCandidateBtn").disabled=false;$("#gachaToStockBtn").disabled=false;
  }catch(e){console.error(e);nameEl.textContent="めん！";readEl.textContent=e.message||"ガチャ失敗ま";breakEl.innerHTML=""}
  finally{spin.disabled=false;spin.textContent="🎲 もう一回！"}
