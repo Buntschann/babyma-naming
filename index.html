@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.4.2">
+  <link rel="stylesheet" href="./style.css?v=5.5">
 </head>
 <body>
 
@@ -39,6 +39,7 @@
     </div>
     <div class="top-actions">
       <button id="updatesBtn" class="updatebtn">更新履歴</button>
+      <button id="gachaBtn" class="gachabtn" title="お楽しみ">🎲</button>
       <button id="refreshAppBtn" class="refreshbtn" title="最新版を確認">↻ 更新</button>
       <button id="settingsBtn" class="iconbtn">⚙︎</button>
       <button id="logoutBtn" class="logoutbtn">ログアウト</button>
@@ -197,6 +198,36 @@
 </div>
 
 
+
+<dialog id="gachaDialog">
+  <div class="dialog-card gacha-dialog-card">
+    <div class="dialog-head">
+      <div><div class="eyebrow">SECRET FUN</div><h2>🎲 名付けガチャ</h2></div>
+      <button id="closeGachaBtn" class="iconbtn">×</button>
+    </div>
+    <p class="hint">常用漢字・人名用漢字から1〜3文字を完全ランダムに組み合わせま。読みは辞書の名乗り・訓・音から、それっぽく自動生成しま。</p>
+    <div class="gacha-stage">
+      <div id="gachaName" class="gacha-name">？？</div>
+      <div id="gachaReading" class="gacha-reading">？？？</div>
+      <div id="gachaBreakdown" class="gacha-breakdown"></div>
+    </div>
+    <div class="gacha-controls">
+      <label>文字数
+        <select id="gachaLength">
+          <option value="random">1〜3文字ランダム</option>
+          <option value="1">1文字</option><option value="2">2文字</option><option value="3">3文字</option>
+        </select>
+      </label>
+      <button id="spinGachaBtn" class="primary gacha-spin">🎲 ガチャる！</button>
+    </div>
+    <div class="gacha-actions">
+      <button id="gachaToCandidateBtn" class="secondary" disabled>名前候補へ送る</button>
+      <button id="gachaToStockBtn" class="secondary" disabled>漢字をストック</button>
+    </div>
+    <div class="gacha-disclaimer">※完全ランダムなので、実在しない・読みにくい・かなり攻めた組み合わせも出ま。それもガチャの味ま。</div>
+  </div>
+</dialog>
+
 <dialog id="updatesDialog">
   <div class="dialog-card updates-dialog-card">
     <div class="dialog-head">
@@ -207,11 +238,20 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.4.2</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.5</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.4.2</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.5</strong><span>最新</span></div>
+        <ul>
+          <li>お楽しみ機能「🎲 名付けガチャ」を追加</li>
+          <li>常用漢字・人名用漢字から1〜3文字を完全ランダム生成</li>
+          <li>辞書の名乗り・訓読み・音読みから「それっぽい読み」を自動生成</li>
+          <li>結果を名前候補へ転送、または漢字ストックへ追加可能</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.4.2</strong></div>
         <ul>
           <li>漢字辞典で「ストック済み」「名前候補に使用中」「両方」を背景色で区別</li>
           <li>一覧に ★ / 名 / ★名 の状態マークを追加</li>
@@ -490,8 +530,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.4.2"></script>
-<script src="./app.js?v=5.4.2"></script>
+<script src="./config.js?v=5.5"></script>
+<script src="./app.js?v=5.5"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>

@@ -3,9 +3,9 @@ const $=s=>document.querySelector(s);
 const storage={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
 const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
-const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names"};
+const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.4.2";
+const APP_VERSION="5.5";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -287,6 +287,61 @@ function gradeLabel(g){
  if(g===9)return "人名用";
  return "—";
 }
+
+function kataToHira(str){return (str||"").replace(/[\u30a1-\u30f6]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0x60))}
+function cleanReading(r){if(!r)return "";let x=kataToHira(r).replace(/[.\-]/g,"").replace(/[()（）\s]/g,"");return x.replace(/[^ぁ-ゖー]/g,"")}
+function randomPick(arr){return arr[Math.floor(Math.random()*arr.length)]}
+function readingCandidates(d){
+ const names=(d?.name_readings||[]).map(cleanReading).filter(Boolean);
+ const kun=(d?.kun_readings||[]).map(cleanReading).filter(Boolean);
+ const on=(d?.on_readings||[]).map(cleanReading).filter(Boolean);
+ if(names.length&&Math.random()<0.72)return names;
+ if(kun.length&&Math.random()<0.62)return kun;
+ return on.length?on:(kun.length?kun:names);
+}
+async function spinNameGacha(){
+ const nameEl=$("#gachaName"),readEl=$("#gachaReading"),breakEl=$("#gachaBreakdown"),spin=$("#spinGachaBtn");
+ spin.disabled=true;spin.textContent="🎲 ガチャ中…";
+ const stage=nameEl.parentElement;stage.classList.remove("gacha-shake");void stage.offsetWidth;stage.classList.add("gacha-shake");
+ try{
+   const sets=await getLegalSets();if(!sets)throw new Error("漢字一覧を取得できなま");
+   const pool=[...new Set([...sets.joyo,...sets.jinmeiyo])];
+   const requested=$("#gachaLength").value;
+   const len=requested==="random"?(1+Math.floor(Math.random()*3)):Number(requested);
+   const chars=[];
+   while(chars.length<len){const ch=randomPick(pool);if(!chars.includes(ch)||Math.random()<0.06)chars.push(ch)}
+   const details=await Promise.all(chars.map(getKanjiDetail)),parts=[];
+   for(let i=0;i<chars.length;i++){
+     const choices=readingCandidates(details[i]);
+     let r=choices.length?randomPick(choices):"";
+     if(!r)r=cleanReading((details[i]?.kun_readings||[])[0]||(details[i]?.on_readings||[])[0]||(details[i]?.name_readings||[])[0]||"");
+     parts.push(r||"?");
+   }
+   const reading=parts.join("");
+   state.gachaResult={name:chars.join(""),reading,chars,parts,details};
+   nameEl.textContent=state.gachaResult.name;readEl.textContent=reading.includes("?")?"読み：？？？":`読み：${reading}`;
+   breakEl.innerHTML=chars.map((ch,i)=>`<span class="gacha-reading-chip">${esc(ch)} → ${esc(parts[i]||"?")}</span>`).join("");
+   $("#gachaToCandidateBtn").disabled=false;$("#gachaToStockBtn").disabled=false;
+ }catch(e){console.error(e);nameEl.textContent="めん！";readEl.textContent=e.message||"ガチャ失敗ま";breakEl.innerHTML=""}
+ finally{spin.disabled=false;spin.textContent="🎲 もう一回！"}
+}
+function gachaToCandidate(){
+ const r=state.gachaResult;if(!r)return;$("#gachaDialog").close();switchAppTab("names");
+ $("#nameInput").value=r.name;$("#readingInput").value=r.reading.includes("?")?"":r.reading;preview();$("#nameInput").dispatchEvent(new Event("input"));
+ setTimeout(()=>{window.scrollTo({top:$("#nameInput").getBoundingClientRect().top+window.scrollY-110,behavior:"smooth"});if(!$("#readingInput").value)$("#readingInput").focus()},150);
+ showToast(`${r.name} を名前候補入力へ送りまし！`);
+}
+async function gachaCharsToStock(){
+ const r=state.gachaResult;if(!r)return;let added=0,skipped=0;
+ for(let i=0;i<r.chars.length;i++){
+   const ch=r.chars[i];if(state.kanjiStocks.some(x=>x.kanji===ch)){skipped++;continue}
+   const d=r.details[i]||await getKanjiDetail(ch);
+   const row={room_code:ROOM,kanji:ch,stroke_count:d?.stroke_count??null,on_readings:d?.on_readings||[],kun_readings:d?.kun_readings||[],name_readings:d?.name_readings||[],meanings:d?.meanings||[],memo_mako:"",memo_nae:"",actor:state.actor||state.user?.email||"家族",owner_user_id:state.user.id};
+   const {error}=await sb.from("kanji_stocks").insert(row);if(!error)added++;else if((error.message||"").toLowerCase().includes("duplicate"))skipped++;else console.error(error)
+ }
+ await refresh();showToast(`${added}字ストックしまし${skipped?`（${skipped}字は登録済み）`:""}！`,2800);
+}
+function openGacha(){$("#gachaDialog").showModal();if(!state.gachaResult)spinNameGacha()}
 function configReady(){
  return cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY &&
  !cfg.SUPABASE_URL.includes("ここに") && !cfg.SUPABASE_PUBLISHABLE_KEY.includes("ここに");
@@ -633,6 +688,11 @@ function render(){
 }
 function preview(){ $("#previewName").textContent=`文谷　${$("#nameInput").value.trim()||"——"}`;$("#previewReading").textContent=`ぶんや　${$("#readingInput").value.trim()||"——"}`}
 
+if($("#gachaBtn")) $("#gachaBtn").onclick=openGacha;
+if($("#closeGachaBtn")) $("#closeGachaBtn").onclick=()=>$("#gachaDialog").close();
+if($("#spinGachaBtn")) $("#spinGachaBtn").onclick=spinNameGacha;
+if($("#gachaToCandidateBtn")) $("#gachaToCandidateBtn").onclick=gachaToCandidate;
+if($("#gachaToStockBtn")) $("#gachaToStockBtn").onclick=gachaCharsToStock;
 if($("#refreshAppBtn")) $("#refreshAppBtn").onclick=()=>updateApp(false);
 $("#loginBtn").onclick=login;
 $("#loginPassword").addEventListener("keydown",e=>{if(e.key==="Enter")login()});

@@ -167,3 +167,15 @@ body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 .dictionary-legend{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .dictionary-legend span{font-size:9px;border-radius:999px;padding:4px 7px}
 .legend-stock{background:#eef6ec}.legend-name{background:#edf3f9}.legend-both{background:#f1edf7}
+
+.gachabtn{border:0;background:transparent;border-radius:10px;min-width:38px;min-height:38px;font-size:20px}
+.gachabtn:active{transform:rotate(12deg) scale(.96)}
+.gacha-stage{margin-top:14px;padding:24px 14px;text-align:center;border:1px dashed #d8cbbd;border-radius:18px;background:linear-gradient(180deg,#fffaf5,#fffdf9)}
+.gacha-name{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:54px;font-weight:700;letter-spacing:.08em}
+.gacha-reading{font-size:18px;color:var(--sub);margin-top:6px}
+.gacha-breakdown{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:12px}
+.gacha-reading-chip{border-radius:999px;background:#f2eee8;padding:5px 8px;font-size:10px;color:#5e5851}
+.gacha-controls{margin-top:14px}.gacha-spin{font-size:16px;min-height:52px}
+.gacha-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.gacha-actions .secondary{min-height:44px}.gacha-actions button:disabled{opacity:.45}
+.gacha-disclaimer{font-size:9px;line-height:1.55;color:var(--sub);margin-top:12px;text-align:center}
+.gacha-shake{animation:gachaShake .36s ease}@keyframes gachaShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px) rotate(-1deg)}75%{transform:translateX(6px) rotate(1deg)}}
