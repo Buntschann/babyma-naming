@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.5.3";
+const APP_VERSION="5.5.4";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -638,13 +638,21 @@ function normalizeReadingSearch(s){
    .replace(/[.\-・･\s]/g,"")
    .replace(/[()（）]/g,"");
 }
-function dictionaryReadingText(row){
- const vals=[
+function dictionaryReadings(row){
+ return [
    ...(row.name_readings||[]),
    ...(row.kun_readings||[]),
    ...(row.on_readings||[])
- ];
- return vals.map(normalizeReadingSearch).join(" ");
+ ].map(normalizeReadingSearch).filter(Boolean);
+}
+function readingMatches(row,query,mode){
+ if(!query)return true;
+ return dictionaryReadings(row).some(r=>{
+   if(mode==="exact")return r===query;
+   if(mode==="prefix")return r.startsWith(query);
+   if(mode==="suffix")return r.endsWith(query);
+   return r.includes(query);
+ });
 }
 async function renderDictionary(){
  const grid=$("#dictionaryGrid"),status=$("#dictionaryStatus"),note=$("#dictionarySortNote");
@@ -667,9 +675,9 @@ async function renderDictionary(){
    ];
  }
 
- const q=$("#dictionarySearch").value.trim(),readingQ=normalizeReadingSearch($("#dictionaryReadingSearch")?.value||""),type=$("#dictionaryTypeFilter").value,sort=$("#dictionarySort").value;
+ const q=$("#dictionarySearch").value.trim(),readingQ=normalizeReadingSearch($("#dictionaryReadingSearch")?.value||""),readingMode=$("#dictionaryReadingMatch")?.value||"exact",type=$("#dictionaryTypeFilter").value,sort=$("#dictionarySort").value;
  if(q)rows=rows.filter(x=>x.kanji===q);
- if(readingQ)rows=rows.filter(x=>dictionaryReadingText(x).includes(readingQ));
+ if(readingQ)rows=rows.filter(x=>readingMatches(x,readingQ,readingMode));
  if(type!=="all")rows=rows.filter(x=>x.type===type);
 
  if(sort==="radical"){
@@ -706,7 +714,8 @@ async function renderDictionary(){
  }
 
  $("#dictionaryCount").textContent=`${rows.length}字`;
- status.textContent=readingQ?`「${$("#dictionaryReadingSearch").value.trim()}」の読みで ${rows.length}字`:`${rows.length}字を表示`;
+ const modeLabel={exact:"完全一致",prefix:"頭一致",suffix:"後ろ一致",contains:"部分一致"}[readingMode]||"";
+ status.textContent=readingQ?`「${$("#dictionaryReadingSearch").value.trim()}」・${modeLabel}で ${rows.length}字`:`${rows.length}字を表示`;
  grid.innerHTML="";
  const frag=document.createDocumentFragment();
  rows.forEach(x=>{
@@ -856,6 +865,7 @@ $("#closeEditBtn").onclick=()=>{state.editing=null;$("#editDialog").close()};
 document.querySelectorAll(".bottom-tab").forEach(b=>b.onclick=()=>switchAppTab(b.dataset.tab));
 if($("#dictionarySearch")) $("#dictionarySearch").oninput=renderDictionary;
 if($("#dictionaryReadingSearch")) $("#dictionaryReadingSearch").oninput=renderDictionary;
+if($("#dictionaryReadingMatch")) $("#dictionaryReadingMatch").onchange=renderDictionary;
 if($("#dictionaryTypeFilter")) $("#dictionaryTypeFilter").onchange=renderDictionary;
 if($("#dictionarySort")) $("#dictionarySort").onchange=renderDictionary;
 if($("#closeDictionaryDetail")) $("#closeDictionaryDetail").onclick=()=>{$("#dictionaryDetail").hidden=true;state.dictionarySelected=null};

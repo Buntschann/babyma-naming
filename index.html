@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.5.3">
+  <link rel="stylesheet" href="./style.css?v=5.5.4">
 </head>
 <body>
 
@@ -108,6 +108,14 @@
       <div class="dictionary-controls">
         <label class="grow">漢字検索<input id="dictionarySearch" maxlength="1" placeholder="漢字1文字"></label>
         <label class="grow">読み検索<input id="dictionaryReadingSearch" placeholder="例：はる、こう、れん"></label>
+        <label>一致方法
+          <select id="dictionaryReadingMatch">
+            <option value="exact">完全一致</option>
+            <option value="prefix">頭一致</option>
+            <option value="suffix">後ろ一致</option>
+            <option value="contains">部分一致</option>
+          </select>
+        </label>
         <label>種類<select id="dictionaryTypeFilter"><option value="all">すべて</option><option value="joyo">常用漢字</option><option value="jinmeiyo">人名用漢字</option></select></label>
         <label>並び順
           <select id="dictionarySort">
@@ -239,11 +247,19 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.5.3</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.5.4</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.5.3</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.5.4</strong><span>最新</span></div>
+        <ul>
+          <li>漢字辞典の読み検索に「完全一致・頭一致・後ろ一致・部分一致」を追加</li>
+          <li>音読み・訓読み・名乗りの各読み単位ごとに一致判定</li>
+          <li>「こと」で「まこと」が出る問題を、完全一致で防げるように</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.5.3</strong></div>
         <ul>
           <li>名付けガチャの読み生成を「人名っぽい響き」重視に再調整</li>
           <li>2〜3文字でも訓読みをしっかり候補に復帰</li>
@@ -557,8 +573,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.5.3"></script>
-<script src="./app.js?v=5.5.3"></script>
+<script src="./config.js?v=5.5.4"></script>
+<script src="./app.js?v=5.5.4"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
