@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.5";
+const APP_VERSION="5.5.1";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -508,6 +508,20 @@ function dictionaryUsage(ch){
  const inName=state.candidates.some(c=>[...(c.name||"")].includes(ch));
  return {inStock,inName};
 }
+
+function normalizeReadingSearch(s){
+ return kataToHira((s||"").trim())
+   .replace(/[.\-・･\s]/g,"")
+   .replace(/[()（）]/g,"");
+}
+function dictionaryReadingText(row){
+ const vals=[
+   ...(row.name_readings||[]),
+   ...(row.kun_readings||[]),
+   ...(row.on_readings||[])
+ ];
+ return vals.map(normalizeReadingSearch).join(" ");
+}
 async function renderDictionary(){
  const grid=$("#dictionaryGrid"),status=$("#dictionaryStatus"),note=$("#dictionarySortNote");
  if(!grid)return;
@@ -529,8 +543,9 @@ async function renderDictionary(){
    ];
  }
 
- const q=$("#dictionarySearch").value.trim(),type=$("#dictionaryTypeFilter").value,sort=$("#dictionarySort").value;
+ const q=$("#dictionarySearch").value.trim(),readingQ=normalizeReadingSearch($("#dictionaryReadingSearch")?.value||""),type=$("#dictionaryTypeFilter").value,sort=$("#dictionarySort").value;
  if(q)rows=rows.filter(x=>x.kanji===q);
+ if(readingQ)rows=rows.filter(x=>dictionaryReadingText(x).includes(readingQ));
  if(type!=="all")rows=rows.filter(x=>x.type===type);
 
  if(sort==="radical"){
@@ -567,7 +582,7 @@ async function renderDictionary(){
  }
 
  $("#dictionaryCount").textContent=`${rows.length}字`;
- status.textContent=`${rows.length}字を表示`;
+ status.textContent=readingQ?`「${$("#dictionaryReadingSearch").value.trim()}」の読みで ${rows.length}字`:`${rows.length}字を表示`;
  grid.innerHTML="";
  const frag=document.createDocumentFragment();
  rows.forEach(x=>{
@@ -716,6 +731,7 @@ $("#closeEditBtn").onclick=()=>{state.editing=null;$("#editDialog").close()};
 
 document.querySelectorAll(".bottom-tab").forEach(b=>b.onclick=()=>switchAppTab(b.dataset.tab));
 if($("#dictionarySearch")) $("#dictionarySearch").oninput=renderDictionary;
+if($("#dictionaryReadingSearch")) $("#dictionaryReadingSearch").oninput=renderDictionary;
 if($("#dictionaryTypeFilter")) $("#dictionaryTypeFilter").onchange=renderDictionary;
 if($("#dictionarySort")) $("#dictionarySort").onchange=renderDictionary;
 if($("#closeDictionaryDetail")) $("#closeDictionaryDetail").onclick=()=>{$("#dictionaryDetail").hidden=true;state.dictionarySelected=null};

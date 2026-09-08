@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.5">
+  <link rel="stylesheet" href="./style.css?v=5.5.1">
 </head>
 <body>
 
@@ -107,6 +107,7 @@
       </div>
       <div class="dictionary-controls">
         <label class="grow">漢字検索<input id="dictionarySearch" maxlength="1" placeholder="漢字1文字"></label>
+        <label class="grow">読み検索<input id="dictionaryReadingSearch" placeholder="例：はる、こう、れん"></label>
         <label>種類<select id="dictionaryTypeFilter"><option value="all">すべて</option><option value="joyo">常用漢字</option><option value="jinmeiyo">人名用漢字</option></select></label>
         <label>並び順
           <select id="dictionarySort">
@@ -238,11 +239,19 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.5</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.5.1</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.5</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.5.1</strong><span>最新</span></div>
+        <ul>
+          <li>漢字辞典に「読み検索」を追加</li>
+          <li>音読み・訓読み・名乗りを横断して検索</li>
+          <li>ひらがな入力でもカタカナ読みを検索可能</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.5</strong></div>
         <ul>
           <li>お楽しみ機能「🎲 名付けガチャ」を追加</li>
           <li>常用漢字・人名用漢字から1〜3文字を完全ランダム生成</li>
@@ -530,8 +539,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.5"></script>
-<script src="./app.js?v=5.5"></script>
+<script src="./config.js?v=5.5.1"></script>
+<script src="./app.js?v=5.5.1"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
