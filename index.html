@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.5.2">
+  <link rel="stylesheet" href="./style.css?v=5.5.3">
 </head>
 <body>
 
@@ -206,7 +206,7 @@
       <div><div class="eyebrow">SECRET FUN</div><h2>🎲 名付けガチャ</h2></div>
       <button id="closeGachaBtn" class="iconbtn">×</button>
     </div>
-    <p class="hint">常用漢字・人名用漢字から1〜3文字を完全ランダムに組み合わせま。1文字は名乗り・訓読み寄り、2文字以上は名乗り・音読み寄りで人名っぽい読みを自動生成しま。</p>
+    <p class="hint">常用漢字・人名用漢字から1〜3文字を完全ランダムに組み合わせま。1文字は名乗り・訓読み寄り、2文字以上は音・訓・名乗りを混ぜながら、読み全体の響きが人名っぽくなるよう自動生成しま。</p>
     <div class="gacha-stage">
       <div id="gachaName" class="gacha-name">？？</div>
       <div id="gachaReading" class="gacha-reading">？？？</div>
@@ -239,11 +239,20 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.5.2</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.5.3</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.5.2</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.5.3</strong><span>最新</span></div>
+        <ul>
+          <li>名付けガチャの読み生成を「人名っぽい響き」重視に再調整</li>
+          <li>2〜3文字でも訓読みをしっかり候補に復帰</li>
+          <li>音・訓・名乗りの混ざり方、読みの長さ、語尾の自然さをまとめて採点</li>
+          <li>熟語っぽすぎる読み・長すぎる読み・不自然な反復を減点</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.5.2</strong></div>
         <ul>
           <li>名付けガチャの読み生成を「人名っぽさ」重視に調整</li>
           <li>1文字名は名乗り・訓読みを優先</li>
@@ -548,8 +557,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.5.2"></script>
-<script src="./app.js?v=5.5.2"></script>
+<script src="./config.js?v=5.5.3"></script>
+<script src="./app.js?v=5.5.3"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>

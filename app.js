@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.5.2";
+const APP_VERSION="5.5.3";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -305,6 +305,7 @@ function hiraMoraLen(s){
 function uniqueReadings(arr){
  return [...new Set((arr||[]).map(cleanReading).filter(Boolean))];
 }
+
 function readingPoolForKanji(d,len){
  const names=uniqueReadings(d?.name_readings||[]);
  const kun=uniqueReadings(d?.kun_readings||[]);
@@ -316,36 +317,93 @@ function readingPoolForKanji(d,len){
      const mora=hiraMoraLen(r);
      if(!mora||mora>5)continue;
      let score=baseScore;
-     if(mora===1||mora===2)score+=1.2;
+     if(mora===1||mora===2)score+=1.0;
+     if(mora===3)score+=0.35;
      if(mora>=4)score-=0.8;
      result.push({reading:r,kind,score});
    }
  };
 
  if(len===1){
-   // Single-kanji names often sound natural with nanori/kun readings.
    add(names,"名乗り",5.0);
-   add(kun,"訓",4.1);
-   add(on,"音",2.8);
+   add(kun,"訓",4.4);
+   add(on,"音",3.0);
  }else{
-   // Multi-kanji names: favor nanori and on readings; kun is fallback.
-   add(names,"名乗り",5.2);
-   add(on,"音",4.5);
-   add(kun,"訓",1.7);
+   // Multi-kanji names can naturally mix nanori / kun / on.
+   add(names,"名乗り",5.0);
+   add(kun,"訓",4.0);
+   add(on,"音",3.9);
  }
- return result.sort((a,b)=>b.score-a.score).slice(0,10);
+ return result.sort((a,b)=>b.score-a.score).slice(0,12);
 }
+
+function gachaSoundScore(reading,len,kinds,parts){
+ let score=0;
+ const mora=hiraMoraLen(reading);
+
+ // Overall length: favor compact, name-like rhythms.
+ const ideal = len===1 ? [2,4] : len===2 ? [3,5] : [4,6];
+ if(mora>=ideal[0]&&mora<=ideal[1])score+=3.0;
+ else if(mora<ideal[0])score-=1.2*(ideal[0]-mora);
+ else score-=1.15*(mora-ideal[1]);
+
+ // Commonly name-like final mora. This is only a gentle preference.
+ const goodEndings=["き","と","た","や","ま","し","り","る","な","か","み","ね","せ","は","ほ","れ","ん"];
+ if(goodEndings.some(x=>reading.endsWith(x)))score+=1.1;
+
+ // Natural light endings and open vowels.
+ if(/[いうえお]$/.test(reading))score+=0.25;
+
+ // Reward nanori usage.
+ if(kinds.includes("名乗り"))score+=1.2;
+
+ // Mixed reading types often sound more like given names than rigid compounds.
+ if(len>=2){
+   const uniqKinds=new Set(kinds.filter(k=>k!=="不明")).size;
+   if(uniqKinds>=2)score+=1.2;
+
+   // All-on can become too compound-like. Do not forbid; just soften.
+   if(kinds.every(k=>k==="音"))score-=1.4;
+
+   // All-kun is allowed, but very long all-kun chains can feel phrase-like.
+   if(kinds.every(k=>k==="訓") && mora>5)score-=1.0;
+ }
+
+ // Per-character readings that are too long make combined names awkward.
+ for(const p of parts){
+   const m=hiraMoraLen(p);
+   if(m>=4)score-=0.8;
+ }
+
+ // Penalize conspicuous repeated chunks / repeated mora.
+ if(parts.length>=2){
+   for(let i=1;i<parts.length;i++){
+     if(parts[i]===parts[i-1])score-=1.5;
+     const a=[...parts[i-1]],b=[...parts[i]];
+     if(a.length&&b.length&&a[a.length-1]===b[0])score-=0.45;
+   }
+ }
+
+ // Heavy sokuon/long-vowel chains are less common in given names.
+ const smallTsu=(reading.match(/っ/g)||[]).length;
+ const longMark=(reading.match(/ー/g)||[]).length;
+ score-=smallTsu*0.8+longMark*0.9;
+
+ // Unknown readings should almost never win.
+ if(reading.includes("?"))score-=8;
+
+ return score;
+}
+
 function makeGachaReading(details,len){
  const pools=details.map(d=>readingPoolForKanji(d,len));
- // If a kanji has no usable reading at all, allow blank marker.
  const normalized=pools.map(p=>p.length?p:[{reading:"?",kind:"不明",score:-5}]);
 
- // Generate up to a manageable number of combinations.
  let combos=[{parts:[],kinds:[],score:0}];
  for(const pool of normalized){
    const next=[];
    for(const c of combos){
-     for(const item of pool.slice(0,6)){
+     for(const item of pool.slice(0,8)){
        next.push({
          parts:[...c.parts,item.reading],
          kinds:[...c.kinds,item.kind],
@@ -354,32 +412,20 @@ function makeGachaReading(details,len){
      }
    }
    next.sort((a,b)=>b.score-a.score);
-   combos=next.slice(0,120);
+   combos=next.slice(0,240);
  }
 
- // Add whole-name length preference.
- const target=len===1?[1,4]:len===2?[3,6]:[4,8];
  for(const c of combos){
-   const reading=c.parts.join("");
-   const mora=hiraMoraLen(reading);
-   c.reading=reading;
-   c.mora=mora;
-   if(mora>=target[0]&&mora<=target[1])c.score+=2.2;
-   else if(mora<target[0])c.score-=1.0;
-   else c.score-=(mora-target[1])*1.3;
-
-   // Multi-kanji all-kun chains are usually less name-like, penalize them.
-   if(len>=2&&c.kinds.every(k=>k==="訓"))c.score-=3.5;
-   // Reward combinations containing at least one nanori.
-   if(c.kinds.includes("名乗り"))c.score+=0.8;
-   // Reward all on/nanori for multi-kanji.
-   if(len>=2&&c.kinds.every(k=>k==="音"||k==="名乗り"))c.score+=1.2;
-  }
+   c.reading=c.parts.join("");
+   c.mora=hiraMoraLen(c.reading);
+   c.score+=gachaSoundScore(c.reading,len,c.kinds,c.parts);
+ }
 
  combos.sort((a,b)=>b.score-a.score);
 
- // Keep a top band so the result remains random rather than deterministic.
- const good=combos.filter(c=>c.score>=combos[0].score-2.6).slice(0,24);
+ // Randomize within the strongest band to preserve gacha feel.
+ const top=combos[0]?.score??0;
+ const good=combos.filter(c=>c.score>=top-2.2).slice(0,32);
  return randomPick(good.length?good:combos);
 }
 async function spinNameGacha(){
