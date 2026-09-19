@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.5.6">
+  <link rel="stylesheet" href="./style.css?v=5.6.0">
 </head>
 <body>
 
@@ -211,29 +211,73 @@
 <dialog id="gachaDialog">
   <div class="dialog-card gacha-dialog-card">
     <div class="dialog-head">
-      <div><div class="eyebrow">SECRET FUN</div><h2>🎲 名付けガチャ</h2></div>
+      <div><div class="eyebrow">NAME MAKER</div><h2>🎲 名付けメーカー</h2></div>
       <button id="closeGachaBtn" class="iconbtn">×</button>
     </div>
-    <p class="hint">常用漢字・人名用漢字から1〜3文字を完全ランダムに組み合わせま。1文字は名乗り・訓読み寄り、2文字以上は音・訓・名乗りを混ぜながら、読み全体の響きが人名っぽくなるよう自動生成しま。</p>
+
     <div class="gacha-stage">
       <div id="gachaName" class="gacha-name">？？</div>
       <div id="gachaReading" class="gacha-reading">？？？</div>
       <div id="gachaBreakdown" class="gacha-breakdown"></div>
     </div>
-    <div class="gacha-controls">
-      <label>文字数
-        <select id="gachaLength">
-          <option value="random">1〜3文字ランダム</option>
-          <option value="1">1文字</option><option value="2">2文字</option><option value="3">3文字</option>
-        </select>
-      </label>
-      <button id="spinGachaBtn" class="primary gacha-spin">🎲 ガチャる！</button>
-    </div>
     <div class="gacha-actions">
       <button id="gachaToCandidateBtn" class="secondary" disabled>名前候補へ送る</button>
       <button id="gachaToStockBtn" class="secondary" disabled>漢字をストック</button>
     </div>
-    <div class="gacha-disclaimer">※完全ランダムなので、実在しない・読みにくい・かなり攻めた組み合わせも出ま。それもガチャの味ま。</div>
+
+    <details class="maker-section" open>
+      <summary>① 漢字から名前を生成</summary>
+      <p class="hint">従来の完全ランダムも残しつつ、今まで2人が選んだ漢字を材料にできま。</p>
+      <div class="maker-controls">
+        <label>使う漢字
+          <select id="gachaSourceMode">
+            <option value="all_random">完全ランダム（従来どおり）</option>
+            <option value="familiar_only">名前候補・漢字ストックの漢字だけ</option>
+            <option value="familiar_mix">名前候補・漢字ストック中心＋別の漢字も</option>
+          </select>
+        </label>
+        <label>文字数
+          <select id="gachaLength">
+            <option value="random">1〜3文字ランダム</option>
+            <option value="1">1文字</option>
+            <option value="2">2文字</option>
+            <option value="3">3文字</option>
+          </select>
+        </label>
+      </div>
+      <button id="spinGachaBtn" class="primary gacha-spin">🎲 名前を生成</button>
+    </details>
+
+    <details class="maker-section" open>
+      <summary>② 読みから漢字を組み合わせる</summary>
+      <p class="hint">読みを分解して、音・訓・名乗りがつながる漢字を1〜3字で組み合わせま。画数上限は名前部分の合計ま。</p>
+      <div class="maker-controls maker-reading-controls">
+        <label class="grow">読み
+          <input id="readingMakerInput" placeholder="例：はると、そうた、れん">
+        </label>
+        <label>文字数
+          <select id="readingMakerLength">
+            <option value="auto">1〜3文字から探す</option>
+            <option value="1">1文字</option>
+            <option value="2">2文字</option>
+            <option value="3">3文字</option>
+          </select>
+        </label>
+        <label>名前の合計画数
+          <div class="maker-stroke-row"><input id="readingMakerMaxStrokes" inputmode="numeric" type="number" min="1" max="99" placeholder="上限なし"><span>画以下</span></div>
+        </label>
+        <label>候補・ストック漢字
+          <select id="readingMakerPriority">
+            <option value="prefer_familiar">優先して使う</option>
+            <option value="neutral">優先しない</option>
+          </select>
+        </label>
+      </div>
+      <button id="readingMakerBtn" class="primary">読みから候補を作る</button>
+      <div id="readingMakerResults" class="reading-maker-results"></div>
+    </details>
+
+    <div class="gacha-disclaimer">※辞書の読み情報を組み合わせた候補生成ま。実際の名乗りとして自然か、出生届で認められる読みかは最終確認してま。</div>
   </div>
 </dialog>
 
@@ -247,11 +291,21 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.5.6</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.6.0</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.5.6</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.6.0</strong><span>最新</span></div>
+        <ul>
+          <li>名付けガチャを「名付けメーカー」に拡張</li>
+          <li>名前候補・漢字ストックの漢字だけで生成するモードを追加</li>
+          <li>選んだ漢字を中心に、別の漢字も混ぜる生成モードを追加</li>
+          <li>読みから漢字を1〜3字で組み合わせる機能を追加</li>
+          <li>名前の合計画数上限と、候補・ストック漢字の優先有無を指定可能に</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.5.6</strong></div>
         <ul>
           <li>名前候補に「想像される呼び名」を追加</li>
           <li>読みから、呼び捨て・短縮形・ちゃん／くん付けを自動表示</li>
@@ -600,8 +654,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.5.6"></script>
-<script src="./app.js?v=5.5.6"></script>
+<script src="./config.js?v=5.6.0"></script>
+<script src="./app.js?v=5.6.0"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
