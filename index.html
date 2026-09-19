@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.5.5">
+  <link rel="stylesheet" href="./style.css?v=5.5.6">
 </head>
 <body>
 
@@ -247,11 +247,19 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.5.5</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.5.6</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.5.5</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.5.6</strong><span>最新</span></div>
+        <ul>
+          <li>名前候補に「想像される呼び名」を追加</li>
+          <li>読みから、呼び捨て・短縮形・ちゃん／くん付けを自動表示</li>
+          <li>「生活の中で呼んでみる」に日常・学校・自己紹介などの例文を追加</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.5.5</strong></div>
         <ul>
           <li>漢字ストックに、まこしゃ・なえちゃ別々の「いいね」を追加</li>
           <li>♡を押すと♥になり、2人それぞれの好みを共有可能に</li>
@@ -520,6 +528,17 @@
       <div class="call-chips"></div>
     </div>
 
+    <div class="nickname-preview">
+      <span class="info-label">想像される呼び名</span>
+      <div class="nickname-chips"></div>
+      <div class="preview-note">※読みから機械的に作った「ありそうな呼び方」ま。実際のあだ名は人それぞれま。</div>
+    </div>
+
+    <details class="name-example-details">
+      <summary>生活の中で呼んでみる</summary>
+      <div class="name-examples"></div>
+    </details>
+
     <details class="auto-kanji-details">
       <summary>漢字情報を自動表示</summary>
       <div class="kanji-auto-info">読み込み中…</div>
@@ -581,8 +600,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.5.5"></script>
-<script src="./app.js?v=5.5.5"></script>
+<script src="./config.js?v=5.5.6"></script>
+<script src="./app.js?v=5.5.6"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
