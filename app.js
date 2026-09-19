@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.5.4";
+const APP_VERSION="5.5.5";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -627,6 +627,18 @@ async function saveEdit(){
 function kanjiKinds(ch,sets){return sets?{joyo:sets.joyo.has(ch),jinmeiyo:sets.jinmeiyo.has(ch)}:{joyo:false,jinmeiyo:false}}
 function kindBadgesHtml(ch,sets){const k=kanjiKinds(ch,sets);let h="";if(k.joyo)h+='<span class="kind-badge kind-joyo">常用漢字</span>';if(k.jinmeiyo)h+='<span class="kind-badge kind-jinmeiyo">人名用漢字</span>';if(!k.joyo&&!k.jinmeiyo)h+='<span class="kind-badge kind-check">要確認</span>';return h}
 async function saveStockMemo(x,role,input){const field=role==="mako"?"memo_mako":"memo_nae";const {error}=await sb.from("kanji_stocks").update({[field]:input.value.trim()}).eq("id",x.id);if(error){alert(error.message);return}await refresh()}
+async function toggleKanjiStockLike(x,role){
+ if(state.role!==role){
+   showToast(`${role==="mako"?"まこしゃ":"なえちゃ"}の「いいね」は本人の端末から押してま！`,2800);
+   return;
+ }
+ const field=role==="mako"?"like_mako":"like_nae";
+ const next=!x[field];
+ const {error}=await sb.from("kanji_stocks").update({[field]:next}).eq("id",x.id);
+ if(error){alert(error.message);return}
+ await refresh();
+ showToast(next?`${x.kanji} にいいねしまし！`:`${x.kanji} のいいねを外しまし`);
+}
 function dictionaryUsage(ch){
  const inStock=state.kanjiStocks.some(x=>x.kanji===ch);
  const inName=state.candidates.some(c=>[...(c.name||"")].includes(ch));
@@ -776,8 +788,12 @@ async function renderKanjiStocks(){
  state.kanjiStocks.forEach(x=>{const card=document.createElement("article");card.className="kanji-stock-card";const on=(x.on_readings||[]).join("・")||"—",kun=(x.kun_readings||[]).join("・")||"—",names=(x.name_readings||[]).join("・")||"—",meanings=(x.meanings||[]).slice(0,4).join(", ")||"—",m=x.memo_mako||"",n=x.memo_nae||"";
  card.innerHTML=`<div class="kanji-stock-char">${esc(x.kanji)}</div><div class="kanji-kind-badges">${kindBadgesHtml(x.kanji,sets)}</div><div class="kanji-stock-meta">${x.stroke_count??"—"}画 ・ ${esc(x.actor||"家族")} ・ ${esc(fmt(x.created_at))}</div><div class="kanji-stock-info"><div>音：${esc(on)}</div><div>訓：${esc(kun)}</div><div>名乗り：${esc(names)}</div><div>意味：${esc(meanings)}</div></div>
  <div class="stock-memo-grid"><div class="stock-memo-box"><div class="stock-memo-title">まこしゃメモ</div><div class="stock-memo-text">${esc(m)||"—"}</div>${state.role==="mako"?`<div class="stock-memo-edit"><input class="memo-mako-input" maxlength="120" value="${esc(m)}"><button class="secondary memo-mako-save">保存</button></div>`:""}</div><div class="stock-memo-box"><div class="stock-memo-title">なえちゃメモ</div><div class="stock-memo-text">${esc(n)||"—"}</div>${state.role==="nae"?`<div class="stock-memo-edit"><input class="memo-nae-input" maxlength="120" value="${esc(n)}"><button class="secondary memo-nae-save">保存</button></div>`:""}</div></div>
+ <div class="stock-like-row">
+   <button class="stock-like stock-like-mako ${x.like_mako?"on":""}" type="button">${x.like_mako?"♥":"♡"} まこしゃ</button>
+   <button class="stock-like stock-like-nae ${x.like_nae?"on":""}" type="button">${x.like_nae?"♥":"♡"} なえちゃ</button>
+ </div>
  <div class="kanji-stock-actions"><button class="secondary stock-use">名前候補に使う</button><button class="secondary stock-delete">ストックから外す</button></div>`;
- card.querySelector(".stock-use").onclick=()=>sendKanjiToCandidate(x);card.querySelector(".stock-delete").onclick=()=>deleteKanjiStock(x);const mi=card.querySelector(".memo-mako-input"),ms=card.querySelector(".memo-mako-save");if(mi&&ms)ms.onclick=()=>saveStockMemo(x,"mako",mi);const ni=card.querySelector(".memo-nae-input"),ns=card.querySelector(".memo-nae-save");if(ni&&ns)ns.onclick=()=>saveStockMemo(x,"nae",ni);list.appendChild(card)});
+ card.querySelector(".stock-like-mako").onclick=()=>toggleKanjiStockLike(x,"mako");card.querySelector(".stock-like-nae").onclick=()=>toggleKanjiStockLike(x,"nae");card.querySelector(".stock-use").onclick=()=>sendKanjiToCandidate(x);card.querySelector(".stock-delete").onclick=()=>deleteKanjiStock(x);const mi=card.querySelector(".memo-mako-input"),ms=card.querySelector(".memo-mako-save");if(mi&&ms)ms.onclick=()=>saveStockMemo(x,"mako",mi);const ni=card.querySelector(".memo-nae-input"),ns=card.querySelector(".memo-nae-save");if(ni&&ns)ns.onclick=()=>saveStockMemo(x,"nae",ni);list.appendChild(card)});
 }
 function toggleCompare(c){
  if(state.compare.includes(c.id)) state.compare=state.compare.filter(x=>x!==c.id);
