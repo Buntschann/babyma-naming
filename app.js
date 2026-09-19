@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.5.6";
+const APP_VERSION="5.6.0";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -480,25 +480,145 @@ function makeGachaReading(details,len){
  const good=combos.filter(c=>c.score>=top-2.2).slice(0,32);
  return randomPick(good.length?good:combos);
 }
+
+function makerFamiliarSet(){
+ const s=new Set();
+ state.kanjiStocks.forEach(function(x){if(isKanji(x.kanji))s.add(x.kanji)});
+ state.candidates.forEach(function(c){[...(c.name||"")].filter(isKanji).forEach(function(ch){s.add(ch)})});
+ return s;
+}
+function makerPickChar(allPool,familiar,mode,used){
+ let source=allPool;
+ if(mode==="familiar_only")source=[...familiar];
+ else if(mode==="familiar_mix"&&familiar.size&&Math.random()<0.72)source=[...familiar];
+ if(!source.length)source=allPool;
+ let ch=randomPick(source),guard=0;
+ while(used.includes(ch)&&guard<12&&Math.random()>0.06){ch=randomPick(source);guard++}
+ return ch;
+}
+function makerKind(d,r){
+ const v=normalizeReadingSearch(r);
+ if(uniqueReadings((d&&d.name_readings)||[]).includes(v))return "名乗り";
+ if(uniqueReadings((d&&d.kun_readings)||[]).includes(v))return "訓";
+ if(uniqueReadings((d&&d.on_readings)||[]).includes(v))return "音";
+ return "読み";
+}
+function makerSetResult(name,reading,chars,parts,details,kinds,meta){
+ state.gachaResult={name:name,reading:reading,chars:chars,parts:parts,details:details,kinds:kinds};
+ $("#gachaName").textContent=name;
+ $("#gachaReading").textContent=reading.includes("?")?"読み：？？？":"読み："+reading;
+ const familiar=makerFamiliarSet();
+ $("#gachaBreakdown").innerHTML=chars.map(function(ch,i){
+   const source=familiar.has(ch)?"候補/ストック":"辞典";
+   return '<span class="gacha-reading-chip">'+esc(ch)+' → '+esc(parts[i]||"?")+' <small>'+esc((kinds&&kinds[i])||"")+'・'+source+'</small></span>';
+ }).join("")+(meta?'<div class="maker-result-meta">'+esc(meta)+'</div>':"");
+ $("#gachaToCandidateBtn").disabled=false;
+ $("#gachaToStockBtn").disabled=false;
+}
+async function makerDictionaryRows(){
+ const enriched=await getDictionaryData();
+ const sets=await getLegalSets();
+ if(!sets)throw new Error("漢字一覧を取得できなま");
+ if(enriched){
+   return enriched.joyo.concat(enriched.jinmeiyo.filter(function(d){return !sets.joyo.has(d.kanji)})).filter(function(d){return d&&d.kanji});
+ }
+ throw new Error("辞典データを取得できなま");
+}
+function makerReadingEntries(row){
+ const out=[];
+ function add(arr,kind,weight){
+   uniqueReadings(arr||[]).forEach(function(r){if(r&&r.length<=6)out.push({reading:r,kind:kind,weight:weight})});
+ }
+ add(row.name_readings,"名乗り",5.0);add(row.kun_readings,"訓",4.3);add(row.on_readings,"音",4.0);
+ return out;
+}
+async function makeNamesFromReading(){
+ const target=normalizeReadingSearch(($("#readingMakerInput")&&$("#readingMakerInput").value)||"");
+ if(!target){showToast("読みを入れてま！");$("#readingMakerInput").focus();return}
+ const lenMode=$("#readingMakerLength").value;
+ const maxLen=lenMode==="auto"?3:Number(lenMode);
+ const exactLen=lenMode==="auto"?null:Number(lenMode);
+ const maxRaw=Number($("#readingMakerMaxStrokes").value||0);
+ const maxStrokes=maxRaw>0?maxRaw:null;
+ const priority=$("#readingMakerPriority").value;
+ const familiar=makerFamiliarSet();
+ const btn=$("#readingMakerBtn");
+ btn.disabled=true;btn.textContent="探し中…";
+ $("#readingMakerResults").innerHTML='<div class="hint">読みから漢字を組み合わせ中…</div>';
+ try{
+   const rows=(await makerDictionaryRows()).filter(function(r){return r.stroke_count!=null});
+   const items=[];
+   rows.forEach(function(row){
+     makerReadingEntries(row).forEach(function(e){
+       if(target.includes(e.reading))items.push({row:row,reading:e.reading,kind:e.kind,weight:e.weight});
+     });
+   });
+   const byFirst=new Map();
+   items.forEach(function(it){
+     const k=it.reading[0];if(!byFirst.has(k))byFirst.set(k,[]);byFirst.get(k).push(it);
+   });
+   const results=[],seen=new Set();
+   function walk(pos,parts,score,strokes){
+     if(results.length>1200)return;
+     if(pos===target.length){
+       if(exactLen&&parts.length!==exactLen)return;
+       if(!exactLen&&(parts.length<1||parts.length>3))return;
+       const name=parts.map(function(p){return p.row.kanji}).join("");
+       if(seen.has(name))return;seen.add(name);
+       const fam=parts.filter(function(p){return familiar.has(p.row.kanji)}).length;
+       const kinds=parts.map(function(p){return p.kind});
+       let s=score+(priority==="prefer_familiar"?fam*5.5:0);
+       s+=gachaSoundScore(target,parts.length,kinds,parts.map(function(p){return p.reading}))*0.35;
+       results.push({name:name,parts:parts,score:s,strokes:strokes,fam:fam});
+       return;
+     }
+     if(parts.length>=maxLen)return;
+     const choices=byFirst.get(target[pos])||[];
+     choices.forEach(function(it){
+       if(!target.startsWith(it.reading,pos))return;
+       const ns=strokes+(it.row.stroke_count||0);if(maxStrokes&&ns>maxStrokes)return;
+       const bonus=it.weight+((priority==="prefer_familiar"&&familiar.has(it.row.kanji))?4:0);
+       walk(pos+it.reading.length,parts.concat([it]),score+bonus,ns);
+     });
+   }
+   walk(0,[],0,0);
+   results.sort(function(a,b){return b.score-a.score||a.strokes-b.strokes||a.name.localeCompare(b.name,"ja")});
+   const top=results.slice(0,24),box=$("#readingMakerResults");box.innerHTML="";
+   if(!top.length){box.innerHTML='<div class="maker-empty">条件に合う組み合わせが見つからなま。文字数か画数上限を広げてみてま。</div>';return}
+   top.forEach(function(r,idx){
+     const b=document.createElement("button");b.type="button";b.className="reading-maker-result"+(idx===0?" selected":"");
+     b.innerHTML='<strong>'+esc(r.name)+'</strong><span>'+r.strokes+'画'+(r.fam?' ・ 身近な漢字'+r.fam+'字':'')+'</span>';
+     b.onclick=function(){
+       const chars=r.parts.map(function(p){return p.row.kanji});
+       makerSetResult(r.name,target,chars,r.parts.map(function(p){return p.reading}),r.parts.map(function(p){return p.row}),r.parts.map(function(p){return p.kind}),r.strokes+"画"+(r.fam?"・候補/ストック由来 "+r.fam+"字":""));
+       box.querySelectorAll(".reading-maker-result").forEach(function(x){x.classList.remove("selected")});b.classList.add("selected");
+     };
+     box.appendChild(b);
+   });
+   const first=top[0];
+   makerSetResult(first.name,target,first.parts.map(function(p){return p.row.kanji}),first.parts.map(function(p){return p.reading}),first.parts.map(function(p){return p.row}),first.parts.map(function(p){return p.kind}),first.strokes+"画"+(first.fam?"・候補/ストック由来 "+first.fam+"字":""));
+ }catch(e){console.error(e);$("#readingMakerResults").innerHTML='<div class="maker-empty">'+esc(e.message||"候補を作れなま")+'</div>'}
+ finally{btn.disabled=false;btn.textContent="読みから候補を作る"}
+}
+
 async function spinNameGacha(){
  const nameEl=$("#gachaName"),readEl=$("#gachaReading"),breakEl=$("#gachaBreakdown"),spin=$("#spinGachaBtn");
- spin.disabled=true;spin.textContent="🎲 ガチャ中…";
+ spin.disabled=true;spin.textContent="🎲 生成中…";
  const stage=nameEl.parentElement;stage.classList.remove("gacha-shake");void stage.offsetWidth;stage.classList.add("gacha-shake");
  try{
    const sets=await getLegalSets();if(!sets)throw new Error("漢字一覧を取得できなま");
-   const pool=[...new Set([...sets.joyo,...sets.jinmeiyo])];
-   const requested=$("#gachaLength").value;
-   const len=requested==="random"?(1+Math.floor(Math.random()*3)):Number(requested);
-   const chars=[];
-   while(chars.length<len){const ch=randomPick(pool);if(!chars.includes(ch)||Math.random()<0.06)chars.push(ch)}
-   const details=await Promise.all(chars.map(getKanjiDetail));
-   const picked=makeGachaReading(details,len);
-   const parts=picked.parts,reading=picked.reading;
-   state.gachaResult={name:chars.join(""),reading,chars,parts,details,kinds:picked.kinds};
-   nameEl.textContent=state.gachaResult.name;readEl.textContent=reading.includes("?")?"読み：？？？":`読み：${reading}`;
-   breakEl.innerHTML=chars.map((ch,i)=>`<span class="gacha-reading-chip">${esc(ch)} → ${esc(parts[i]||"?")} <small>${esc(state.gachaResult.kinds?.[i]||"")}</small></span>`).join("");
-   $("#gachaToCandidateBtn").disabled=false;$("#gachaToStockBtn").disabled=false;
- }catch(e){console.error(e);nameEl.textContent="めん！";readEl.textContent=e.message||"ガチャ失敗ま";breakEl.innerHTML=""}
+   const allPool=[...new Set([...sets.joyo,...sets.jinmeiyo])],familiar=makerFamiliarSet();
+   const mode=($("#gachaSourceMode")&&$("#gachaSourceMode").value)||"all_random";
+   if(mode==="familiar_only"&&!familiar.size)throw new Error("名前候補か漢字ストックに、まず漢字を登録してま");
+   const requested=$("#gachaLength").value,len=requested==="random"?(1+Math.floor(Math.random()*3)):Number(requested),chars=[];
+   while(chars.length<len)chars.push(makerPickChar(allPool,familiar,mode,chars));
+   if(mode==="familiar_mix"&&len>=2&&familiar.size&&chars.every(function(ch){return familiar.has(ch)})&&Math.random()<0.7){
+     const outside=allPool.filter(function(ch){return !familiar.has(ch)});if(outside.length)chars[Math.floor(Math.random()*len)]=randomPick(outside);
+   }
+   const details=await Promise.all(chars.map(getKanjiDetail)),picked=makeGachaReading(details,len);
+   const label=mode==="familiar_only"?"候補・ストックのみ":mode==="familiar_mix"?"候補・ストック中心＋別漢字":"完全ランダム";
+   makerSetResult(chars.join(""),picked.reading,chars,picked.parts,details,picked.kinds,label);
+ }catch(e){console.error(e);nameEl.textContent="めん！";readEl.textContent=e.message||"生成失敗ま";breakEl.innerHTML=""}
  finally{spin.disabled=false;spin.textContent="🎲 もう一回！"}
 }
 function gachaToCandidate(){
@@ -907,6 +1027,8 @@ function preview(){ $("#previewName").textContent=`文谷　${$("#nameInput").va
 if($("#gachaBtn")) $("#gachaBtn").onclick=openGacha;
 if($("#closeGachaBtn")) $("#closeGachaBtn").onclick=()=>$("#gachaDialog").close();
 if($("#spinGachaBtn")) $("#spinGachaBtn").onclick=spinNameGacha;
+if($("#readingMakerBtn")) $("#readingMakerBtn").onclick=makeNamesFromReading;
+if($("#readingMakerInput")) $("#readingMakerInput").addEventListener("keydown",function(e){if(e.key==="Enter")makeNamesFromReading()});
 if($("#gachaToCandidateBtn")) $("#gachaToCandidateBtn").onclick=gachaToCandidate;
 if($("#gachaToStockBtn")) $("#gachaToStockBtn").onclick=gachaCharsToStock;
 if($("#refreshAppBtn")) $("#refreshAppBtn").onclick=()=>updateApp(false);
