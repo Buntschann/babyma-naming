@@ -241,3 +241,28 @@ body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 @media(max-width:560px){
   .name-examples{grid-template-columns:1fr}
 }
+
+
+/* v5.6.0: practical name maker */
+.gacha-dialog-card{max-width:720px}
+.maker-section{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.maker-section summary{cursor:pointer;font-size:13px;font-weight:800}
+.maker-section .hint{margin:7px 0 10px}
+.maker-controls{display:grid;grid-template-columns:1.5fr 1fr;gap:9px;margin-bottom:10px}
+.maker-reading-controls{grid-template-columns:1.4fr .8fr 1fr 1fr}
+.maker-controls label{font-size:10px;color:var(--sub)}
+.maker-controls select,.maker-controls input{width:100%;margin-top:4px}
+.maker-stroke-row{display:flex;align-items:center;gap:5px}
+.maker-stroke-row input{min-width:0}
+.maker-stroke-row span{white-space:nowrap;font-size:10px}
+.reading-maker-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:10px}
+.reading-maker-result{border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 7px;text-align:center}
+.reading-maker-result strong{display:block;font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:23px}
+.reading-maker-result span{display:block;margin-top:3px;font-size:9px;color:var(--sub)}
+.reading-maker-result.selected{background:#f5eee8;border-color:#cdb9aa}
+.maker-empty{grid-column:1/-1;background:#faf7f2;border-radius:12px;padding:12px;font-size:11px;color:var(--sub)}
+.maker-result-meta{width:100%;margin-top:4px;font-size:10px;color:var(--sub)}
+@media(max-width:620px){
+  .maker-controls,.maker-reading-controls{grid-template-columns:1fr}
+  .reading-maker-results{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
