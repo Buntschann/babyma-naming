@@ -179,3 +179,27 @@ body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 .gacha-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.gacha-actions .secondary{min-height:44px}.gacha-actions button:disabled{opacity:.45}
 .gacha-disclaimer{font-size:9px;line-height:1.55;color:var(--sub);margin-top:12px;text-align:center}
 .gacha-shake{animation:gachaShake .36s ease}@keyframes gachaShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px) rotate(-1deg)}75%{transform:translateX(6px) rotate(1deg)}}
+
+
+/* v5.5.5: kanji stock likes */
+.stock-like-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  margin-top:9px
+}
+.stock-like{
+  border:1px solid var(--line);
+  background:#fff;
+  color:var(--sub);
+  border-radius:999px;
+  min-height:38px;
+  font-size:11px;
+  font-weight:700
+}
+.stock-like.on{
+  background:#fff0f1;
+  border-color:#e5bdc1;
+  color:#a6535c
+}
+.stock-like:active{transform:scale(.98)}
