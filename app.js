@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.5.5";
+const APP_VERSION="5.5.6";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -128,11 +128,63 @@ async function renderLegalAndKanjiInfo(c,root){
    info.appendChild(box);
  });
 }
+function readingMoraChunks(reading){
+ const chars=[...(reading||"").trim()],out=[];
+ for(const ch of chars){
+   if(out.length&&"ゃゅょぁぃぅぇぉゎ".includes(ch))out[out.length-1]+=ch;
+   else out.push(ch);
+ }
+ return out;
+}
+function imaginedNicknames(reading){
+ const r=(reading||"").trim();if(!r)return [];
+ const mora=readingMoraChunks(r),base=[];
+ const add=x=>{if(x&&!base.includes(x))base.push(x)};
+ add(r);
+ if(mora.length>=3)add(mora.slice(0,2).join(""));
+ if(mora.length>=4)add(mora.slice(0,3).join(""));
+ const result=[];
+ const push=x=>{if(x&&!result.includes(x))result.push(x)};
+ base.forEach(x=>push(x));
+ base.forEach(x=>push(x+"ちゃん"));
+ base.forEach(x=>push(x+"くん"));
+ return result.slice(0,8);
+}
 function renderCallPreview(c,root){
- const box=root.querySelector(".call-chips");box.innerHTML="";
- [`${c.reading}くん`,`${c.reading}ちゃん`,`${c.reading}さん`,`文谷${c.name}です`].forEach(t=>{
-   const x=document.createElement("span");x.className="call-chip";x.textContent=t;box.appendChild(x);
+ const callBox=root.querySelector(".call-chips");callBox.innerHTML="";
+ [`${c.reading}くん`,`${c.reading}ちゃん`,`${c.reading}さん`,`文谷${c.name}さん`].forEach(t=>{
+   const x=document.createElement("span");x.className="call-chip";x.textContent=t;callBox.appendChild(x);
  });
+
+ const nickBox=root.querySelector(".nickname-chips");
+ if(nickBox){
+   nickBox.innerHTML="";
+   imaginedNicknames(c.reading).forEach(t=>{
+     const x=document.createElement("span");x.className="nickname-chip";x.textContent=t;nickBox.appendChild(x);
+   });
+ }
+
+ const exampleBox=root.querySelector(".name-examples");
+ if(exampleBox){
+   exampleBox.innerHTML="";
+   const r=c.reading||c.name;
+   [
+    `${r}、おはよう！`,
+    `${r}、ごはんだよ`,
+    `${r}、行ってらっしゃい！`,
+    `${r}、おかえり！`,
+    `${r}、大丈夫？`,
+    `${r}、ありがとう`,
+    `${r}、こっちおいで〜`,
+    `${r}、今日はどうだった？`,
+    `文谷${c.name}です`,
+    `文谷${c.name}さん、お願いします`,
+    `${c.name}さんはいらっしゃいますか？`,
+    `${r}くん／${r}ちゃん`
+   ].forEach(t=>{
+     const x=document.createElement("div");x.className="name-example";x.textContent=t;exampleBox.appendChild(x);
+   });
+ }
 }
 function candidateHistory(c){
  return state.history.filter(h=>h.candidate_id===c.id || (!h.candidate_id && h.candidate_name===c.name && h.candidate_reading===c.reading));
