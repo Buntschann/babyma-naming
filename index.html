@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.6.0">
+  <link rel="stylesheet" href="./style.css?v=5.6.1">
 </head>
 <body>
 
@@ -227,13 +227,14 @@
 
     <details class="maker-section" open>
       <summary>① 漢字から名前を生成</summary>
-      <p class="hint">従来の完全ランダムも残しつつ、今まで2人が選んだ漢字を材料にできま。</p>
+      <p class="hint">実用ランダムは、名乗り読み・読みの長さ・日常で見かける漢字などを加味して、人名らしい候補を優先しま。従来のカオスな完全ランダムも「ネタ完全ランダム」として残してありま。</p>
       <div class="maker-controls">
         <label>使う漢字
           <select id="gachaSourceMode">
-            <option value="all_random">完全ランダム（従来どおり）</option>
+            <option value="practical_random">実用ランダム（おすすめ）</option>
             <option value="familiar_only">名前候補・漢字ストックの漢字だけ</option>
             <option value="familiar_mix">名前候補・漢字ストック中心＋別の漢字も</option>
+            <option value="all_random">ネタ完全ランダム（従来どおり）</option>
           </select>
         </label>
         <label>文字数
@@ -291,11 +292,20 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.6.0</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.6.1</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.6.0</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.6.1</strong><span>最新</span></div>
+        <ul>
+          <li>ランダム生成に「実用ランダム」を追加し、初期モードに変更</li>
+          <li>名乗り読み・読みの長さ・漢字の使用頻度・学年などから人名らしさを評価</li>
+          <li>多数の候補を内部生成して、自然さの高い候補群からランダムに表示</li>
+          <li>従来の完全ランダムは「ネタ完全ランダム」としてそのまま保存</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.6.0</strong></div>
         <ul>
           <li>名付けガチャを「名付けメーカー」に拡張</li>
           <li>名前候補・漢字ストックの漢字だけで生成するモードを追加</li>
@@ -654,8 +664,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.6.0"></script>
-<script src="./app.js?v=5.6.0"></script>
+<script src="./config.js?v=5.6.1"></script>
+<script src="./app.js?v=5.6.1"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
