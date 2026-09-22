@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.6.0";
+const APP_VERSION="5.6.1";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -601,23 +601,125 @@ async function makeNamesFromReading(){
  finally{btn.disabled=false;btn.textContent="読みから候補を作る"}
 }
 
+
+function makerPracticalLength(requested){
+ if(requested!=="random")return Number(requested);
+ const r=Math.random();
+ return r<0.24?1:r<0.88?2:3;
+}
+function makerCommonKanjiRows(rows){
+ return rows.filter(function(r){
+   const freq=r.freq_mainichi_shinbun;
+   const grade=r.grade;
+   const hasName=(r.name_readings||[]).length>0;
+   const hasShort=makerReadingEntries(r).some(function(x){return hiraMoraLen(x.reading)<=3});
+   return hasShort && (hasName || (freq!=null&&freq<=2500) || (grade!=null&&grade<=8));
+ });
+}
+function makerWeightedRow(rows,familiar,boostFamiliar){
+ if(!rows.length)return null;
+ const weighted=[];
+ rows.forEach(function(r){
+   let w=1;
+   if((r.name_readings||[]).length)w+=4;
+   if(r.freq_mainichi_shinbun!=null){
+     if(r.freq_mainichi_shinbun<=500)w+=3;
+     else if(r.freq_mainichi_shinbun<=1500)w+=2;
+     else if(r.freq_mainichi_shinbun<=3000)w+=1;
+   }
+   if(r.grade!=null&&r.grade<=6)w+=1.5;
+   if(boostFamiliar&&familiar.has(r.kanji))w+=5;
+   const copies=Math.max(1,Math.round(w));
+   for(let i=0;i<copies;i++)weighted.push(r);
+ });
+ return randomPick(weighted);
+}
+function makerPracticalScore(chars,details,picked,familiar){
+ let score=picked.score||0;
+ const reading=picked.reading||"";
+ const mora=hiraMoraLen(reading);
+ if(reading.includes("?"))score-=30;
+ if(mora>=2&&mora<=5)score+=4;
+ else if(mora===6)score+=1;
+ else score-=3;
+ const goodEnd=["と","き","た","や","ま","し","り","る","な","か","み","ね","せ","は","ほ","れ","ん","お","う","い","え","あ"];
+ if(goodEnd.some(function(x){return reading.endsWith(x)}))score+=1.5;
+ details.forEach(function(d,i){
+   if((d.name_readings||[]).length)score+=2.4;
+   const f=d.freq_mainichi_shinbun;
+   if(f!=null){
+     if(f<=500)score+=2.2;
+     else if(f<=1500)score+=1.4;
+     else if(f<=3000)score+=0.6;
+   }
+   if(d.grade!=null&&d.grade<=6)score+=0.8;
+   if(familiar.has(chars[i]))score+=1.2;
+ });
+ if(new Set(chars).size<chars.length)score-=4;
+ if(chars.length===2&&mora>=3&&mora<=5)score+=2;
+ if(chars.length===1&&(picked.kinds||[]).includes("名乗り"))score+=2;
+ if(chars.length===3&&mora>6)score-=3;
+ return score;
+}
+async function makerPracticalCandidate(mode,requested){
+ const rows=await makerDictionaryRows();
+ const familiar=makerFamiliarSet();
+ const common=makerCommonKanjiRows(rows);
+ const rowMap=new Map(rows.map(function(r){return [r.kanji,r]}));
+ const familiarRows=[...familiar].map(function(ch){return rowMap.get(ch)}).filter(Boolean);
+ if(mode==="familiar_only"&&!familiarRows.length)throw new Error("名前候補か漢字ストックに、まず漢字を登録してま");
+ const trials=[];
+ const trialCount=mode==="familiar_only"?90:140;
+ for(let t=0;t<trialCount;t++){
+   const len=makerPracticalLength(requested),details=[],chars=[];
+   for(let i=0;i<len;i++){
+     let row=null;
+     if(mode==="familiar_only"){
+       row=makerWeightedRow(familiarRows,familiar,true);
+     }else if(mode==="familiar_mix"&&familiarRows.length&&Math.random()<0.72){
+       row=makerWeightedRow(familiarRows,familiar,true);
+     }else{
+       row=makerWeightedRow(common.length?common:rows,familiar,false);
+     }
+     if(!row)continue;
+     if(chars.includes(row.kanji)&&Math.random()>0.03){i--;continue}
+     chars.push(row.kanji);details.push(row);
+   }
+   if(chars.length!==len)continue;
+   if(mode==="familiar_mix"&&familiarRows.length&&len>=2&&chars.every(function(ch){return familiar.has(ch)})){
+     const outside=(common.length?common:rows).filter(function(r){return !familiar.has(r.kanji)});
+     const repl=makerWeightedRow(outside,familiar,false);
+     if(repl){const j=Math.floor(Math.random()*len);chars[j]=repl.kanji;details[j]=repl}
+   }
+   const picked=makeGachaReading(details,len);
+   const score=makerPracticalScore(chars,details,picked,familiar);
+   trials.push({chars:chars,details:details,picked:picked,score:score});
+ }
+ if(!trials.length)throw new Error("候補を作れなま");
+ trials.sort(function(a,b){return b.score-a.score});
+ const top=trials.slice(0,Math.min(12,trials.length));
+ return randomPick(top);
+}
 async function spinNameGacha(){
  const nameEl=$("#gachaName"),readEl=$("#gachaReading"),breakEl=$("#gachaBreakdown"),spin=$("#spinGachaBtn");
  spin.disabled=true;spin.textContent="🎲 生成中…";
  const stage=nameEl.parentElement;stage.classList.remove("gacha-shake");void stage.offsetWidth;stage.classList.add("gacha-shake");
  try{
-   const sets=await getLegalSets();if(!sets)throw new Error("漢字一覧を取得できなま");
-   const allPool=[...new Set([...sets.joyo,...sets.jinmeiyo])],familiar=makerFamiliarSet();
-   const mode=($("#gachaSourceMode")&&$("#gachaSourceMode").value)||"all_random";
-   if(mode==="familiar_only"&&!familiar.size)throw new Error("名前候補か漢字ストックに、まず漢字を登録してま");
-   const requested=$("#gachaLength").value,len=requested==="random"?(1+Math.floor(Math.random()*3)):Number(requested),chars=[];
-   while(chars.length<len)chars.push(makerPickChar(allPool,familiar,mode,chars));
-   if(mode==="familiar_mix"&&len>=2&&familiar.size&&chars.every(function(ch){return familiar.has(ch)})&&Math.random()<0.7){
-     const outside=allPool.filter(function(ch){return !familiar.has(ch)});if(outside.length)chars[Math.floor(Math.random()*len)]=randomPick(outside);
+   const mode=($("#gachaSourceMode")&&$("#gachaSourceMode").value)||"practical_random";
+   const requested=$("#gachaLength").value;
+   if(mode==="all_random"){
+     const sets=await getLegalSets();if(!sets)throw new Error("漢字一覧を取得できなま");
+     const allPool=[...new Set([...sets.joyo,...sets.jinmeiyo])];
+     const len=requested==="random"?(1+Math.floor(Math.random()*3)):Number(requested),chars=[];
+     while(chars.length<len)chars.push(makerPickChar(allPool,new Set(),"all_random",chars));
+     const details=await Promise.all(chars.map(getKanjiDetail)),picked=makeGachaReading(details,len);
+     makerSetResult(chars.join(""),picked.reading,chars,picked.parts,details,picked.kinds,"ネタ完全ランダム");
+   }else{
+     const result=await makerPracticalCandidate(mode,requested);
+     const chars=result.chars,details=result.details,picked=result.picked;
+     const label=mode==="familiar_only"?"候補・ストックのみ（実用寄り）":mode==="familiar_mix"?"候補・ストック中心＋別漢字（実用寄り）":"実用ランダム";
+     makerSetResult(chars.join(""),picked.reading,chars,picked.parts,details,picked.kinds,label);
    }
-   const details=await Promise.all(chars.map(getKanjiDetail)),picked=makeGachaReading(details,len);
-   const label=mode==="familiar_only"?"候補・ストックのみ":mode==="familiar_mix"?"候補・ストック中心＋別漢字":"完全ランダム";
-   makerSetResult(chars.join(""),picked.reading,chars,picked.parts,details,picked.kinds,label);
  }catch(e){console.error(e);nameEl.textContent="めん！";readEl.textContent=e.message||"生成失敗ま";breakEl.innerHTML=""}
  finally{spin.disabled=false;spin.textContent="🎲 もう一回！"}
 }
