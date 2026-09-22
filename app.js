@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.6.1";
+const APP_VERSION="5.6.2";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -605,100 +605,122 @@ async function makeNamesFromReading(){
 function makerPracticalLength(requested){
  if(requested!=="random")return Number(requested);
  const r=Math.random();
- return r<0.24?1:r<0.88?2:3;
+ return r<0.18?1:r<0.9?2:3;
 }
-function makerCommonKanjiRows(rows){
+function practicalReadingSeeds(){
+ const builtIn=[
+  "あおい","あき","あきと","あさひ","あや","いおり","いつき","えま","かい","かなた","かなで",
+  "こう","こうき","こうた","さき","さく","さくら","しおん","しゅう","そう","そうた","そら",
+  "たくみ","つむぎ","なお","なぎ","なぎさ","はる","はるき","はると","ひなた","ひかり","ひろ",
+  "ほのか","まこと","みお","みなと","めい","ゆい","ゆう","ゆうき","ゆうと","りお","りく",
+  "りつ","りん","れい","れお","れん","かえで","けい","けいた","けん","けんと","さな","さら",
+  "すい","せな","たいが","たいき","ちひろ","とうま","とも","ともき","なな","はな","ひより",
+  "ふうか","まい","みつき","みゆ","もも","ゆな","ゆら","りくと","りょう","りょうた","るい"
+ ];
+ const fromCandidates=state.candidates.map(function(c){return normalizeReadingSearch(c.reading||"")}).filter(Boolean);
+ return [...new Set(fromCandidates.concat(builtIn))];
+}
+function makerUsableRows(rows){
  return rows.filter(function(r){
+   if(!r||!r.kanji||r.stroke_count==null)return false;
+   const entries=makerReadingEntries(r);
+   if(!entries.length)return false;
+   const hasNanori=(r.name_readings||[]).length>0;
    const freq=r.freq_mainichi_shinbun;
    const grade=r.grade;
-   const hasName=(r.name_readings||[]).length>0;
-   const hasShort=makerReadingEntries(r).some(function(x){return hiraMoraLen(x.reading)<=3});
-   return hasShort && (hasName || (freq!=null&&freq<=2500) || (grade!=null&&grade<=8));
+   return hasNanori || (freq!=null&&freq<=2200) || (grade!=null&&grade<=6);
  });
 }
-function makerWeightedRow(rows,familiar,boostFamiliar){
- if(!rows.length)return null;
- const weighted=[];
- rows.forEach(function(r){
-   let w=1;
-   if((r.name_readings||[]).length)w+=4;
-   if(r.freq_mainichi_shinbun!=null){
-     if(r.freq_mainichi_shinbun<=500)w+=3;
-     else if(r.freq_mainichi_shinbun<=1500)w+=2;
-     else if(r.freq_mainichi_shinbun<=3000)w+=1;
-   }
-   if(r.grade!=null&&r.grade<=6)w+=1.5;
-   if(boostFamiliar&&familiar.has(r.kanji))w+=5;
-   const copies=Math.max(1,Math.round(w));
-   for(let i=0;i<copies;i++)weighted.push(r);
+function buildReadingNameCandidates(target,rows,opts){
+ const familiar=opts.familiar||new Set(), exactLen=opts.exactLen||null, maxLen=opts.maxLen||3;
+ const priorityFamiliar=!!opts.priorityFamiliar, onlyFamiliar=!!opts.onlyFamiliar;
+ const items=[];
+ rows.forEach(function(row){
+   if(onlyFamiliar&&!familiar.has(row.kanji))return;
+   makerReadingEntries(row).forEach(function(e){
+     if(!target.includes(e.reading))return;
+     if(e.kind!=="名乗り" && (row.name_readings||[]).length===0 && row.freq_mainichi_shinbun!=null && row.freq_mainichi_shinbun>1800)return;
+     items.push({row:row,reading:e.reading,kind:e.kind,weight:e.weight});
+   });
  });
- return randomPick(weighted);
-}
-function makerPracticalScore(chars,details,picked,familiar){
- let score=picked.score||0;
- const reading=picked.reading||"";
- const mora=hiraMoraLen(reading);
- if(reading.includes("?"))score-=30;
- if(mora>=2&&mora<=5)score+=4;
- else if(mora===6)score+=1;
- else score-=3;
- const goodEnd=["と","き","た","や","ま","し","り","る","な","か","み","ね","せ","は","ほ","れ","ん","お","う","い","え","あ"];
- if(goodEnd.some(function(x){return reading.endsWith(x)}))score+=1.5;
- details.forEach(function(d,i){
-   if((d.name_readings||[]).length)score+=2.4;
-   const f=d.freq_mainichi_shinbun;
-   if(f!=null){
-     if(f<=500)score+=2.2;
-     else if(f<=1500)score+=1.4;
-     else if(f<=3000)score+=0.6;
+ const byFirst=new Map();
+ items.forEach(function(it){const k=it.reading[0];if(!byFirst.has(k))byFirst.set(k,[]);byFirst.get(k).push(it)});
+ const out=[],seen=new Set();
+ function walk(pos,parts,score,strokes){
+   if(out.length>700)return;
+   if(pos===target.length){
+     if(exactLen&&parts.length!==exactLen)return;
+     if(!exactLen&&(parts.length<1||parts.length>maxLen))return;
+     const name=parts.map(function(p){return p.row.kanji}).join("");
+     if(seen.has(name))return;seen.add(name);
+     const fam=parts.filter(function(p){return familiar.has(p.row.kanji)}).length;
+     let s=score;
+     parts.forEach(function(p){
+       if(p.kind==="名乗り")s+=5;
+       else if(p.kind==="訓")s+=1.4;
+       else s+=0.6;
+       if((p.row.name_readings||[]).length)s+=1.5;
+       const f=p.row.freq_mainichi_shinbun;
+       if(f!=null){if(f<=700)s+=2;else if(f<=1600)s+=1}
+       if(p.row.grade!=null&&p.row.grade<=6)s+=0.8;
+     });
+     if(priorityFamiliar)s+=fam*6;
+     if(new Set(parts.map(function(p){return p.row.kanji})).size<parts.length)s-=5;
+     if(parts.length===2)s+=2.2;
+     if(parts.length===3)s-=0.7;
+     out.push({name:name,parts:parts,score:s,strokes:strokes,fam:fam});
+     return;
    }
-   if(d.grade!=null&&d.grade<=6)score+=0.8;
-   if(familiar.has(chars[i]))score+=1.2;
- });
- if(new Set(chars).size<chars.length)score-=4;
- if(chars.length===2&&mora>=3&&mora<=5)score+=2;
- if(chars.length===1&&(picked.kinds||[]).includes("名乗り"))score+=2;
- if(chars.length===3&&mora>6)score-=3;
- return score;
+   if(parts.length>=maxLen)return;
+   const choices=byFirst.get(target[pos])||[];
+   choices.forEach(function(it){
+     if(!target.startsWith(it.reading,pos))return;
+     walk(pos+it.reading.length,parts.concat([it]),score+it.weight,strokes+(it.row.stroke_count||0));
+   });
+ }
+ walk(0,[],0,0);
+ out.sort(function(a,b){return b.score-a.score||a.strokes-b.strokes});
+ return out;
 }
 async function makerPracticalCandidate(mode,requested){
- const rows=await makerDictionaryRows();
+ const rows=makerUsableRows(await makerDictionaryRows());
  const familiar=makerFamiliarSet();
- const common=makerCommonKanjiRows(rows);
- const rowMap=new Map(rows.map(function(r){return [r.kanji,r]}));
- const familiarRows=[...familiar].map(function(ch){return rowMap.get(ch)}).filter(Boolean);
- if(mode==="familiar_only"&&!familiarRows.length)throw new Error("名前候補か漢字ストックに、まず漢字を登録してま");
- const trials=[];
- const trialCount=mode==="familiar_only"?90:140;
- for(let t=0;t<trialCount;t++){
-   const len=makerPracticalLength(requested),details=[],chars=[];
-   for(let i=0;i<len;i++){
-     let row=null;
-     if(mode==="familiar_only"){
-       row=makerWeightedRow(familiarRows,familiar,true);
-     }else if(mode==="familiar_mix"&&familiarRows.length&&Math.random()<0.72){
-       row=makerWeightedRow(familiarRows,familiar,true);
-     }else{
-       row=makerWeightedRow(common.length?common:rows,familiar,false);
-     }
-     if(!row)continue;
-     if(chars.includes(row.kanji)&&Math.random()>0.03){i--;continue}
-     chars.push(row.kanji);details.push(row);
-   }
-   if(chars.length!==len)continue;
-   if(mode==="familiar_mix"&&familiarRows.length&&len>=2&&chars.every(function(ch){return familiar.has(ch)})){
-     const outside=(common.length?common:rows).filter(function(r){return !familiar.has(r.kanji)});
-     const repl=makerWeightedRow(outside,familiar,false);
-     if(repl){const j=Math.floor(Math.random()*len);chars[j]=repl.kanji;details[j]=repl}
-   }
-   const picked=makeGachaReading(details,len);
-   const score=makerPracticalScore(chars,details,picked,familiar);
-   trials.push({chars:chars,details:details,picked:picked,score:score});
+ const exactLen=requested==="random"?null:Number(requested);
+ const seeds=practicalReadingSeeds();
+ const shuffled=seeds.slice().sort(function(){return Math.random()-.5});
+ const all=[];
+ for(const target of shuffled.slice(0,55)){
+   const found=buildReadingNameCandidates(target,rows,{
+     familiar:familiar,
+     exactLen:exactLen,
+     maxLen:exactLen||3,
+     priorityFamiliar:mode==="familiar_mix"||mode==="familiar_only",
+     onlyFamiliar:mode==="familiar_only"
+   }).slice(0,5);
+   found.forEach(function(r){
+     let bonus=0;
+     if(state.candidates.some(function(c){return normalizeReadingSearch(c.reading||"")===target}))bonus+=4;
+     if(mode==="familiar_mix"&&r.fam===0)bonus-=2.5;
+     all.push({target:target,result:r,score:r.score+bonus});
+   });
  }
- if(!trials.length)throw new Error("候補を作れなま");
- trials.sort(function(a,b){return b.score-a.score});
- const top=trials.slice(0,Math.min(12,trials.length));
- return randomPick(top);
+ if(!all.length){
+   if(mode==="familiar_only")throw new Error("今の候補・ストック漢字だけでは、人名らしい読みとの組み合わせが見つからなま");
+   throw new Error("人名らしい候補を作れなま");
+ }
+ all.sort(function(a,b){return b.score-a.score});
+ const band=all.slice(0,Math.min(20,all.length));
+ const chosen=randomPick(band);
+ const r=chosen.result;
+ const chars=r.parts.map(function(p){return p.row.kanji});
+ const details=r.parts.map(function(p){return p.row});
+ const picked={
+   reading:chosen.target,
+   parts:r.parts.map(function(p){return p.reading}),
+   kinds:r.parts.map(function(p){return p.kind}),
+   score:r.score
+ };
+ return {chars:chars,details:details,picked:picked,score:chosen.score};
 }
 async function spinNameGacha(){
  const nameEl=$("#gachaName"),readEl=$("#gachaReading"),breakEl=$("#gachaBreakdown"),spin=$("#spinGachaBtn");
