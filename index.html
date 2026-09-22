@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.6.1">
+  <link rel="stylesheet" href="./style.css?v=5.6.2">
 </head>
 <body>
 
@@ -227,7 +227,7 @@
 
     <details class="maker-section" open>
       <summary>① 漢字から名前を生成</summary>
-      <p class="hint">実用ランダムは、名乗り読み・読みの長さ・日常で見かける漢字などを加味して、人名らしい候補を優先しま。従来のカオスな完全ランダムも「ネタ完全ランダム」として残してありま。</p>
+      <p class="hint">実用ランダムは「漢字を先に適当に選ぶ」のをやめ、人名として自然な読みを先に選んで、その読みに合う漢字を名乗り読み中心で組み合わせま。候補に登録済みの読みも優先材料にしま。従来のカオスな完全ランダムは「ネタ完全ランダム」として残してありま。</p>
       <div class="maker-controls">
         <label>使う漢字
           <select id="gachaSourceMode">
@@ -292,11 +292,20 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.6.1</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.6.2</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.6.1</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.6.2</strong><span>最新</span></div>
+        <ul>
+          <li>実用ランダムの生成方式を全面変更</li>
+          <li>漢字をランダムに選んでから無理に読む方式をやめ、人名らしい読みを先に決める方式へ</li>
+          <li>その読みを名乗り読み中心で分解し、自然な漢字候補を組み合わせるよう改善</li>
+          <li>現在の名前候補にある「読み」も生成候補として優先的に活用</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.6.1</strong></div>
         <ul>
           <li>ランダム生成に「実用ランダム」を追加し、初期モードに変更</li>
           <li>名乗り読み・読みの長さ・漢字の使用頻度・学年などから人名らしさを評価</li>
@@ -664,8 +673,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.6.1"></script>
-<script src="./app.js?v=5.6.1"></script>
+<script src="./config.js?v=5.6.2"></script>
+<script src="./app.js?v=5.6.2"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
