@@ -5,7 +5,7 @@ const cfg=window.BABYMA_CONFIG||{};
 let sb=null;
 const state={candidates:[],history:[],comments:[],kanjiStocks:[],compare:[],actor:"",role:"mako",user:null,editing:null,kanjiCache:{},legalSets:null,dictionarySelected:null,dictionaryData:null,radicalMap:null,currentTab:"names",gachaResult:null};
 const ROOM="BABYMA";
-const APP_VERSION="5.6.2";
+const APP_VERSION="5.7.0";
 const now=()=>new Date().toISOString();
 const fmt=i=>new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(i));
 const count=s=>[...(s||"")].length;
@@ -61,6 +61,11 @@ function enableManualStroke(input,statusEl){
 
 
 const RATING_KEYS=["sound","surname","meaning","writing","calling"];
+const KANJI_IMPRESSION_PRESETS=[
+ "人柄・思いやり","志・信念","知性・学び","成長・未来","強さ","しなやかさ",
+ "自然","光・明るさ","音楽・芸術","縁・つながり","幸福・喜び","誠実・真心",
+ "挑戦・達成","自由・広がり","個性・自分らしさ"
+];
 const ratingOptions=()=>'<option value="">—</option>'+[1,2,3,4,5].map(n=>`<option value="${n}">${"★".repeat(n)}</option>`).join("");
 
 async function getLegalSets(){
@@ -935,6 +940,42 @@ async function toggleKanjiStockLike(x,role){
  await refresh();
  showToast(next?`${x.kanji} にいいねしまし！`:`${x.kanji} のいいねを外しまし`);
 }
+function stockImpressionTags(x){
+ return [...new Set((x.impression_tags||[]).map(function(t){return String(t||"").trim()}).filter(Boolean))];
+}
+function allStockImpressionTags(){
+ const used=state.kanjiStocks.flatMap(stockImpressionTags);
+ return [...new Set(KANJI_IMPRESSION_PRESETS.concat(used))];
+}
+async function saveStockImpressionTags(x,tags){
+ const clean=[...new Set((tags||[]).map(function(t){return String(t||"").trim().replace(/^#/,"")}).filter(Boolean))].slice(0,12);
+ const {error}=await sb.from("kanji_stocks").update({impression_tags:clean}).eq("id",x.id);
+ if(error){alert(error.message);return false}
+ await refresh();return true;
+}
+async function toggleStockImpressionTag(x,tag){
+ const tags=stockImpressionTags(x),i=tags.indexOf(tag);
+ if(i>=0)tags.splice(i,1);else tags.push(tag);
+ await saveStockImpressionTags(x,tags);
+}
+async function addCustomStockImpressionTag(x,input){
+ const tag=(input.value||"").trim().replace(/^#/,"");
+ if(!tag)return;
+ const tags=stockImpressionTags(x);
+ if(!tags.includes(tag))tags.push(tag);
+ input.value="";
+ await saveStockImpressionTags(x,tags);
+}
+function renderStockImpressionFilter(){
+ const select=$("#kanjiStockImpressionFilter");if(!select)return;
+ const current=select.value||"all";
+ const tags=[...new Set(state.kanjiStocks.flatMap(stockImpressionTags))].sort(function(a,b){return a.localeCompare(b,"ja")});
+ select.innerHTML='<option value="all">すべての分類</option><option value="untagged">未分類</option>'+
+   tags.map(function(t){return '<option value="'+esc(t)+'">'+esc(t)+'</option>'}).join("");
+ if([...select.options].some(function(o){return o.value===current}))select.value=current;
+ else select.value="all";
+}
+
 function dictionaryUsage(ch){
  const inStock=state.kanjiStocks.some(x=>x.kanji===ch);
  const inName=state.candidates.some(c=>[...(c.name||"")].includes(ch));
@@ -1080,16 +1121,59 @@ function sendKanjiToCandidate(x){
  $("#readingInput").focus();
 }
 async function renderKanjiStocks(){
- const list=$("#kanjiStockList"),empty=$("#kanjiStockEmpty");list.innerHTML="";$("#kanjiStockCount").textContent=`${state.kanjiStocks.length}字`;empty.hidden=state.kanjiStocks.length>0;const sets=await getLegalSets();
- state.kanjiStocks.forEach(x=>{const card=document.createElement("article");card.className="kanji-stock-card";const on=(x.on_readings||[]).join("・")||"—",kun=(x.kun_readings||[]).join("・")||"—",names=(x.name_readings||[]).join("・")||"—",meanings=(x.meanings||[]).slice(0,4).join(", ")||"—",m=x.memo_mako||"",n=x.memo_nae||"";
- card.innerHTML=`<div class="kanji-stock-char">${esc(x.kanji)}</div><div class="kanji-kind-badges">${kindBadgesHtml(x.kanji,sets)}</div><div class="kanji-stock-meta">${x.stroke_count??"—"}画 ・ ${esc(x.actor||"家族")} ・ ${esc(fmt(x.created_at))}</div><div class="kanji-stock-info"><div>音：${esc(on)}</div><div>訓：${esc(kun)}</div><div>名乗り：${esc(names)}</div><div>意味：${esc(meanings)}</div></div>
- <div class="stock-memo-grid"><div class="stock-memo-box"><div class="stock-memo-title">まこしゃメモ</div><div class="stock-memo-text">${esc(m)||"—"}</div>${state.role==="mako"?`<div class="stock-memo-edit"><input class="memo-mako-input" maxlength="120" value="${esc(m)}"><button class="secondary memo-mako-save">保存</button></div>`:""}</div><div class="stock-memo-box"><div class="stock-memo-title">なえちゃメモ</div><div class="stock-memo-text">${esc(n)||"—"}</div>${state.role==="nae"?`<div class="stock-memo-edit"><input class="memo-nae-input" maxlength="120" value="${esc(n)}"><button class="secondary memo-nae-save">保存</button></div>`:""}</div></div>
- <div class="stock-like-row">
-   <button class="stock-like stock-like-mako ${x.like_mako?"on":""}" type="button">${x.like_mako?"♥":"♡"} まこしゃ</button>
-   <button class="stock-like stock-like-nae ${x.like_nae?"on":""}" type="button">${x.like_nae?"♥":"♡"} なえちゃ</button>
- </div>
- <div class="kanji-stock-actions"><button class="secondary stock-use">名前候補に使う</button><button class="secondary stock-delete">ストックから外す</button></div>`;
- card.querySelector(".stock-like-mako").onclick=()=>toggleKanjiStockLike(x,"mako");card.querySelector(".stock-like-nae").onclick=()=>toggleKanjiStockLike(x,"nae");card.querySelector(".stock-use").onclick=()=>sendKanjiToCandidate(x);card.querySelector(".stock-delete").onclick=()=>deleteKanjiStock(x);const mi=card.querySelector(".memo-mako-input"),ms=card.querySelector(".memo-mako-save");if(mi&&ms)ms.onclick=()=>saveStockMemo(x,"mako",mi);const ni=card.querySelector(".memo-nae-input"),ns=card.querySelector(".memo-nae-save");if(ni&&ns)ns.onclick=()=>saveStockMemo(x,"nae",ni);list.appendChild(card)});
+ const list=$("#kanjiStockList"),empty=$("#kanjiStockEmpty");
+ if(!list||!empty)return;
+ renderStockImpressionFilter();
+ const filter=$("#kanjiStockImpressionFilter")?.value||"all";
+ const rows=state.kanjiStocks.filter(function(x){
+   const tags=stockImpressionTags(x);
+   if(filter==="all")return true;
+   if(filter==="untagged")return tags.length===0;
+   return tags.includes(filter);
+ });
+ list.innerHTML="";
+ $("#kanjiStockCount").textContent=filter==="all"?state.kanjiStocks.length+"字":rows.length+" / "+state.kanjiStocks.length+"字";
+ empty.hidden=rows.length>0;
+ empty.textContent=filter==="all"?"まだストックがなま。":"この分類の漢字はまだなま。";
+ const sets=await getLegalSets();
+ rows.forEach(function(x){
+   const card=document.createElement("article");card.className="kanji-stock-card";
+   const on=(x.on_readings||[]).join("・")||"—",kun=(x.kun_readings||[]).join("・")||"—",names=(x.name_readings||[]).join("・")||"—",meanings=(x.meanings||[]).slice(0,4).join(", ")||"—",m=x.memo_mako||"",n=x.memo_nae||"";
+   const tags=stockImpressionTags(x);
+   const tagHtml=tags.length?tags.map(function(t){return '<span class="stock-impression-chip">'+esc(t)+'</span>'}).join(""):'<span class="stock-impression-empty">未分類</span>';
+   const presetHtml=allStockImpressionTags().map(function(t){return '<button type="button" class="stock-impression-toggle '+(tags.includes(t)?"on":"")+'" data-tag="'+esc(t)+'">'+(tags.includes(t)?"✓ ":"")+esc(t)+'</button>'}).join("");
+   card.innerHTML=`<div class="kanji-stock-char">${esc(x.kanji)}</div>
+   <div class="kanji-kind-badges">${kindBadgesHtml(x.kanji,sets)}</div>
+   <div class="kanji-stock-meta">${x.stroke_count??"—"}画 ・ ${esc(x.actor||"家族")} ・ ${esc(fmt(x.created_at))}</div>
+   <div class="stock-impression-display"><div class="stock-impression-label">意味・印象</div><div class="stock-impression-chips">${tagHtml}</div></div>
+   <details class="stock-impression-editor">
+     <summary>意味・印象の分類を編集</summary>
+     <div class="stock-impression-preset-grid">${presetHtml}</div>
+     <div class="stock-impression-custom"><input class="stock-impression-custom-input" maxlength="24" placeholder="自由分類を追加"><button type="button" class="secondary stock-impression-custom-add">追加</button></div>
+   </details>
+   <div class="kanji-stock-info"><div>音：${esc(on)}</div><div>訓：${esc(kun)}</div><div>名乗り：${esc(names)}</div><div>意味：${esc(meanings)}</div></div>
+   <div class="stock-memo-grid"><div class="stock-memo-box"><div class="stock-memo-title">まこしゃメモ</div><div class="stock-memo-text">${esc(m)||"—"}</div>${state.role==="mako"?`<div class="stock-memo-edit"><input class="memo-mako-input" maxlength="120" value="${esc(m)}"><button class="secondary memo-mako-save">保存</button></div>`:""}</div><div class="stock-memo-box"><div class="stock-memo-title">なえちゃメモ</div><div class="stock-memo-text">${esc(n)||"—"}</div>${state.role==="nae"?`<div class="stock-memo-edit"><input class="memo-nae-input" maxlength="120" value="${esc(n)}"><button class="secondary memo-nae-save">保存</button></div>`:""}</div></div>
+   <div class="stock-like-row">
+     <button class="stock-like stock-like-mako ${x.like_mako?"on":""}" type="button">${x.like_mako?"♥":"♡"} まこしゃ</button>
+     <button class="stock-like stock-like-nae ${x.like_nae?"on":""}" type="button">${x.like_nae?"♥":"♡"} なえちゃ</button>
+   </div>
+   <div class="kanji-stock-actions"><button class="secondary stock-use">名前候補に使う</button><button class="secondary stock-delete">ストックから外す</button></div>`;
+   card.querySelectorAll(".stock-impression-toggle").forEach(function(btn){btn.onclick=function(){toggleStockImpressionTag(x,btn.dataset.tag)}});
+   const customInput=card.querySelector(".stock-impression-custom-input"),customAdd=card.querySelector(".stock-impression-custom-add");
+   if(customInput&&customAdd){
+     customAdd.onclick=function(){addCustomStockImpressionTag(x,customInput)};
+     customInput.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();addCustomStockImpressionTag(x,customInput)}});
+   }
+   card.querySelector(".stock-like-mako").onclick=function(){toggleKanjiStockLike(x,"mako")};
+   card.querySelector(".stock-like-nae").onclick=function(){toggleKanjiStockLike(x,"nae")};
+   card.querySelector(".stock-use").onclick=function(){sendKanjiToCandidate(x)};
+   card.querySelector(".stock-delete").onclick=function(){deleteKanjiStock(x)};
+   const mi=card.querySelector(".memo-mako-input"),ms=card.querySelector(".memo-mako-save");
+   if(mi&&ms)ms.onclick=function(){saveStockMemo(x,"mako",mi)};
+   const ni=card.querySelector(".memo-nae-input"),ns=card.querySelector(".memo-nae-save");
+   if(ni&&ns)ns.onclick=function(){saveStockMemo(x,"nae",ni)};
+   list.appendChild(card);
+ });
 }
 function toggleCompare(c){
  if(state.compare.includes(c.id)) state.compare=state.compare.filter(x=>x!==c.id);
@@ -1185,6 +1269,7 @@ if($("#dictionarySort")) $("#dictionarySort").onchange=renderDictionary;
 if($("#closeDictionaryDetail")) $("#closeDictionaryDetail").onclick=()=>{$("#dictionaryDetail").hidden=true;state.dictionarySelected=null};
 if($("#dictionaryAddStockBtn")) $("#dictionaryAddStockBtn").onclick=addDictionarySelectedToStock;
 if($("#addKanjiStockBtn")) $("#addKanjiStockBtn").onclick=addKanjiStock;
+if($("#kanjiStockImpressionFilter")) $("#kanjiStockImpressionFilter").onchange=renderKanjiStocks;
 $("#kanjiStockInput").addEventListener("keydown",e=>{if(e.key==="Enter")addKanjiStock()});
 $("#addBtn").onclick=addCandidate;$("#searchInput").oninput=render;$("#sortSelect").onchange=render;$("#statusFilter").onchange=render;
 $("#clearCompareBtn").onclick=()=>{state.compare=[];storage.set("babyma_compare",[]);render()};
