@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ベビま名付け">
   <title>ベビま 名付けノート</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=5.6.2">
+  <link rel="stylesheet" href="./style.css?v=5.7.0">
 </head>
 <body>
 
@@ -95,6 +95,15 @@
         <label>漢字<input id="kanjiStockInput" maxlength="1" placeholder="例：凪"></label>
         <label class="grow">自分のメモ<input id="kanjiStockMemo" maxlength="120" placeholder="例：響きが好き、意味がいい"></label>
         <button id="addKanjiStockBtn" class="secondary stock-add-btn">キープ</button>
+      </div>
+      <div class="stock-impression-filterbar">
+        <label>意味・印象で絞る
+          <select id="kanjiStockImpressionFilter">
+            <option value="all">すべての分類</option>
+            <option value="untagged">未分類</option>
+          </select>
+        </label>
+        <div class="hint">1つの漢字に複数の分類を付けられま。用意した分類＋自由分類の両方が使えま。</div>
       </div>
       <div id="kanjiStockList" class="kanji-stock-list"></div>
       <div id="kanjiStockEmpty" class="stock-empty">まだストックがなま。</div>
@@ -292,11 +301,21 @@
       <button id="closeUpdatesBtn" class="iconbtn">×</button>
     </div>
 
-    <div class="current-version">現在のバージョン <strong>v5.6.2</strong></div>
+    <div class="current-version">現在のバージョン <strong>v5.7.0</strong></div>
 
     <div class="update-history">
       <section class="update-entry latest">
-        <div class="version-line"><strong>v5.6.2</strong><span>最新</span></div>
+        <div class="version-line"><strong>v5.7.0</strong><span>最新</span></div>
+        <ul>
+          <li>漢字ストックに「意味・印象」の分類タグを追加</li>
+          <li>1つの漢字に複数の分類を付与可能</li>
+          <li>人柄・志・知性・成長・自然・音楽などの定番分類を用意</li>
+          <li>2人だけの自由な分類タグも追加可能</li>
+          <li>分類ごと／未分類だけで漢字ストックを絞り込み可能</li>
+        </ul>
+      </section>
+      <section class="update-entry">
+        <div class="version-line"><strong>v5.6.2</strong></div>
         <ul>
           <li>実用ランダムの生成方式を全面変更</li>
           <li>漢字をランダムに選んでから無理に読む方式をやめ、人名らしい読みを先に決める方式へ</li>
@@ -673,8 +692,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./config.js?v=5.6.2"></script>
-<script src="./app.js?v=5.6.2"></script>
+<script src="./config.js?v=5.7.0"></script>
+<script src="./app.js?v=5.7.0"></script>
 <div id="appToast" class="app-toast" hidden></div>
 </body>
 </html>
