@@ -266,3 +266,31 @@ body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
   .maker-controls,.maker-reading-controls{grid-template-columns:1fr}
   .reading-maker-results{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+
+/* v5.7.0: kanji meaning / impression classification */
+.stock-impression-filterbar{
+ display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:10px 0 14px;
+ padding:10px 12px;background:#faf7f2;border-radius:12px
+}
+.stock-impression-filterbar label{min-width:180px;font-size:10px;color:var(--sub)}
+.stock-impression-filterbar select{width:100%;margin-top:4px}
+.stock-impression-display{margin-top:10px}
+.stock-impression-label{font-size:10px;font-weight:800;color:var(--sub);margin-bottom:5px}
+.stock-impression-chips{display:flex;gap:5px;flex-wrap:wrap}
+.stock-impression-chip{
+ display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;
+ background:#f1eee5;color:#5b554c;font-size:10px;font-weight:700
+}
+.stock-impression-empty{font-size:10px;color:var(--sub)}
+.stock-impression-editor{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.stock-impression-editor summary{cursor:pointer;font-size:10px;font-weight:700;color:var(--sub)}
+.stock-impression-preset-grid{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.stock-impression-toggle{
+ border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 8px;
+ font-size:9px;color:var(--sub)
+}
+.stock-impression-toggle.on{background:#ece8d9;border-color:#c9bea2;color:#544a38;font-weight:800}
+.stock-impression-custom{display:flex;gap:6px;margin-top:8px}
+.stock-impression-custom input{min-width:0;flex:1}
+.stock-impression-custom button{white-space:nowrap}
